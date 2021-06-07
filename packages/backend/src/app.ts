@@ -3,20 +3,25 @@ import { EventEmitter } from 'events'
 
 import { IocContract } from '@adonisjs/fold'
 import Knex from 'knex'
-import Koa, { Context, DefaultState } from 'koa'
+import Koa, { DefaultState, Middleware } from 'koa'
 import bodyParser from 'koa-bodyparser'
 import { Logger } from 'pino'
 import Router from '@koa/router'
 
 import { Config as AppConfig } from './config/app'
+import { makeSPSPHandler } from './services/spsp'
 import { MessageProducer } from './infrastructure/messageProducer'
 import { WorkerUtils } from 'graphile-worker'
 
-export interface AppContext extends Context {
+export interface AppContextData {
   logger: Logger
   closeEmitter: EventEmitter
   container: AppContainer
+  // Set by @koa/router.
+  params: { [key: string]: string }
 }
+
+export type AppContext = Koa.ParameterizedContext<DefaultState, AppContextData>
 
 export interface AppServices {
   logger: Promise<Logger>
@@ -38,6 +43,7 @@ export class App {
   private logger!: Logger
   private messageProducer!: MessageProducer
   private config!: typeof AppConfig
+  private handleSPSP!: Middleware<unknown, AppContext>
 
   public constructor(private container: IocContract<AppServices>) {}
 
@@ -57,6 +63,7 @@ export class App {
     this.koa.context.closeEmitter = await this.container.use('closeEmitter')
     this.messageProducer = await this.container.use('messageProducer')
     this.publicRouter = new Router()
+    this.handleSPSP = await makeSPSPHandler(this.container)
 
     this.koa.use(
       async (
@@ -110,6 +117,7 @@ export class App {
     this.publicRouter.get('/healthz', (ctx: AppContext): void => {
       ctx.status = 200
     })
+    this.publicRouter.get('/pay/:id', this.handleSPSP)
 
     this.koa.use(this.publicRouter.middleware())
   }

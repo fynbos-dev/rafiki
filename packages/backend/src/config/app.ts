@@ -1,3 +1,5 @@
+import * as crypto from 'crypto'
+
 function envString(name: string, value: string): string {
   const envValue = process.env[name]
   return envValue == null ? value : envValue
@@ -25,6 +27,12 @@ export const Config = {
   redisUrl: envString('REDIS_URL', 'redis://127.0.0.1:6379'),
   coilApiGrpcUrl: envString('COIL_API_GRPC_URL', 'localhost:6000'),
   nonceRedisKey: envString('NONCE_REDIS_KEY', 'nonceToProject'),
+
+  accountsUrl: envString('ACCOUNTS_URL', 'http://127.0.0.1:3456'), // TODO default port?
+  ilpAddress: envString('ILP_ADDRESS', 'test.rafiki'),
+  streamSecret: process.env.STREAM_SECRET
+    ? Buffer.from(process.env.STREAM_SECRET, 'base64')
+    : crypto.randomBytes(32),
 
   /** Frontend **/
   frontendUrl: envString('FRONTEND_URL', 'http://localhost:3000')
