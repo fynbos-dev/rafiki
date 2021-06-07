@@ -27,12 +27,23 @@ describe('SPSP handler', function () {
     serverAddress: Config.ilpAddress
   })
 
-  const koa = new Koa<unknown, AppContextData>()
-  koa.use(async (ctx, _next) => {
-    if (ctx.request.path !== '/ilp-accounts/alice') ctx.throw(404)
-    ctx.body = {
+  const accounts = {
+    alice: {
+      stream: { enabled: true },
+      asset: { code: 'USD', scale: 9 }
+    },
+    disabled_stream: {
+      stream: { enabled: false },
       asset: { code: 'USD', scale: 9 }
     }
+  }
+
+  const koa = new Koa<unknown, AppContextData>()
+  koa.use(async (ctx, _next) => {
+    const path = /^\/ilp-accounts\/(\w+)$/
+    const match = path.exec(ctx.request.path)
+    if (!match || !accounts[match[1]]) return ctx.throw(404)
+    ctx.body = accounts[match[1]]
   })
 
   beforeAll(async () => {
@@ -85,6 +96,12 @@ describe('SPSP handler', function () {
       id: 'InvalidReceiverError',
       message: 'Invalid receiver ID'
     })
+  })
+
+  test('disabled stream; returns 400', async () => {
+    const ctx = createContext({})
+    ctx.params.id = 'disabled_stream'
+    await expect(handle(ctx, next)).rejects.toHaveProperty('status', 400)
   })
 
   test('receipts disabled', async () => {

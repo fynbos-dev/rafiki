@@ -48,6 +48,12 @@ export async function makeSPSPHandler(
       })
       return
     }
+    if (!res.data['stream']?.enabled) {
+      ctx.throw(
+        400,
+        'Failed to generate credentials: stream is disabled for account'
+      )
+    }
 
     try {
       const { ilpAddress, sharedSecret } = server.generateCredentials({
