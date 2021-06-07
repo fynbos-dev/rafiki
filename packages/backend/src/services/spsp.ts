@@ -39,7 +39,7 @@ export async function makeSPSPHandler(
     const res = await axios.get(
       `/ilp-accounts/${encodeURIComponent(accountId)}`
     )
-    if (res.status === 404) {
+    if (res.status === 404 || res.data['disabled']) {
       ctx.status = 404
       ctx.set('Content-Type', 'application/spsp4+json')
       ctx.body = JSON.stringify({

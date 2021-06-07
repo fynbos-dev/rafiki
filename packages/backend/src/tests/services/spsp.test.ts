@@ -32,6 +32,11 @@ describe('SPSP handler', function () {
       stream: { enabled: true },
       asset: { code: 'USD', scale: 9 }
     },
+    disabled_account: {
+      disabled: true,
+      stream: { enabled: true },
+      asset: { code: 'USD', scale: 9 }
+    },
     disabled_stream: {
       stream: { enabled: false },
       asset: { code: 'USD', scale: 9 }
@@ -89,6 +94,18 @@ describe('SPSP handler', function () {
   test('no account; returns 404', async () => {
     const ctx = createContext({})
     ctx.params.id = 'unknown'
+    await expect(handle(ctx, next)).resolves.toBeUndefined()
+    expect(ctx.response.status).toBe(404)
+    expect(ctx.response.get('Content-Type')).toBe('application/spsp4+json')
+    expect(JSON.parse(ctx.body as string)).toEqual({
+      id: 'InvalidReceiverError',
+      message: 'Invalid receiver ID'
+    })
+  })
+
+  test('disabled account; returns 404', async () => {
+    const ctx = createContext({})
+    ctx.params.id = 'disabled_account'
     await expect(handle(ctx, next)).resolves.toBeUndefined()
     expect(ctx.response.status).toBe(404)
     expect(ctx.response.get('Content-Type')).toBe('application/spsp4+json')
