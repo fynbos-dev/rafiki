@@ -1,8 +1,10 @@
 import Axios from 'axios'
 import base64url from 'base64url'
+import * as uuid from 'uuid'
 import { Middleware } from 'koa'
 import { StreamServer } from '@interledger/stream-receiver'
 import { AppContainer, AppContext } from '../app'
+import { User } from '../models'
 
 export async function makeSPSPHandler(
   container: AppContainer
@@ -19,6 +21,10 @@ export async function makeSPSPHandler(
   })
 
   return async function handleSPSP(ctx: AppContext): Promise<void> {
+    if (!uuid.validate(ctx.params.id) || uuid.version(ctx.params.id) !== 4) {
+      ctx.throw(400, 'Failed to generate credentials: invalid user id')
+    }
+
     if (!ctx.get('accept').includes('application/spsp4+json')) {
       ctx.throw(
         406,
@@ -35,11 +41,15 @@ export async function makeSPSPHandler(
       )
     }
 
-    const accountId = ctx.params.id
-    const res = await axios.get(
-      `/ilp-accounts/${encodeURIComponent(accountId)}`
-    )
-    if (res.status === 404 || res.data['disabled']) {
+    const user = await User.query().findById(ctx.params.id)
+    const res =
+      user &&
+      (await axios.get(`/ilp-accounts/${encodeURIComponent(user.accountId)}`))
+    if (
+      !user ||
+      res.status === 404 ||
+      (res.status === 200 && res.data['disabled'])
+    ) {
       ctx.status = 404
       ctx.set('Content-Type', 'application/spsp4+json')
       ctx.body = JSON.stringify({
@@ -57,7 +67,7 @@ export async function makeSPSPHandler(
 
     try {
       const { ilpAddress, sharedSecret } = server.generateCredentials({
-        paymentTag: accountId,
+        paymentTag: user.accountId,
         receiptSetup:
           nonce && secret
             ? {
