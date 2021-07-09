@@ -3792,6 +3792,23 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
           "linkType": "HARD",
         }]
       ]],
+      ["@interledger/pay", [
+        ["npm:0.2.2", {
+          "packageLocation": "./.yarn/cache/@interledger-pay-npm-0.2.2-b602bd72b5-aa2dc9e253.zip/node_modules/@interledger/pay/",
+          "packageDependencies": [
+            ["@interledger/pay", "npm:0.2.2"],
+            ["@rgrove/parse-xml", "npm:2.0.4"],
+            ["axios", "npm:0.19.2"],
+            ["bignumber.js", "npm:9.0.1"],
+            ["ilp-logger", "npm:1.4.2"],
+            ["ilp-packet", "npm:3.1.2"],
+            ["ilp-protocol-ildcp", "npm:2.2.2"],
+            ["ilp-protocol-stream", "npm:2.7.0"],
+            ["long", "npm:4.0.0"]
+          ],
+          "linkType": "HARD",
+        }]
+      ]],
       ["@interledger/stream-receiver", [
         ["npm:0.2.2", {
           "packageLocation": "./.yarn/cache/@interledger-stream-receiver-npm-0.2.2-48481babb9-a34cb037ad.zip/node_modules/@interledger/stream-receiver/",
@@ -4298,6 +4315,15 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
           "packageLocation": "./.yarn/cache/@protobufjs-utf8-npm-1.1.0-02c590807c-5b3fa7425f.zip/node_modules/@protobufjs/utf8/",
           "packageDependencies": [
             ["@protobufjs/utf8", "npm:1.1.0"]
+          ],
+          "linkType": "HARD",
+        }]
+      ]],
+      ["@rgrove/parse-xml", [
+        ["npm:2.0.4", {
+          "packageLocation": "./.yarn/cache/@rgrove-parse-xml-npm-2.0.4-7ad8e8889e-9a754ff1a1.zip/node_modules/@rgrove/parse-xml/",
+          "packageDependencies": [
+            ["@rgrove/parse-xml", "npm:2.0.4"]
           ],
           "linkType": "HARD",
         }]
@@ -6846,6 +6872,14 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
         }]
       ]],
       ["axios", [
+        ["npm:0.19.2", {
+          "packageLocation": "./.yarn/cache/axios-npm-0.19.2-e4e8599895-bad346deea.zip/node_modules/axios/",
+          "packageDependencies": [
+            ["axios", "npm:0.19.2"],
+            ["follow-redirects", "npm:1.5.10"]
+          ],
+          "linkType": "HARD",
+        }],
         ["npm:0.21.1", {
           "packageLocation": "./.yarn/cache/axios-npm-0.21.1-d192f6b3b3-864fb7b5d0.zip/node_modules/axios/",
           "packageDependencies": [
@@ -7047,6 +7081,7 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
             ["@graphql-codegen/introspection", "virtual:aa59773ac87791c4813d53447077fcf8a847d6de5a301d34dc31286584b1dbb26d30d3adb5b4c41c1e8aea04371e926fda05c09c6253647c432e11d872a304ba#npm:1.18.2"],
             ["@graphql-codegen/typescript", "virtual:aa59773ac87791c4813d53447077fcf8a847d6de5a301d34dc31286584b1dbb26d30d3adb5b4c41c1e8aea04371e926fda05c09c6253647c432e11d872a304ba#npm:1.22.2"],
             ["@graphql-codegen/typescript-resolvers", "virtual:aa59773ac87791c4813d53447077fcf8a847d6de5a301d34dc31286584b1dbb26d30d3adb5b4c41c1e8aea04371e926fda05c09c6253647c432e11d872a304ba#npm:1.19.3"],
+            ["@interledger/pay", "npm:0.2.2"],
             ["@interledger/stream-receiver", "npm:0.2.2"],
             ["@koa/cors", "npm:3.1.0"],
             ["@koa/router", "npm:10.0.0"],
@@ -7147,6 +7182,15 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
           "packageDependencies": [
             ["bcrypt-pbkdf", "npm:1.0.2"],
             ["tweetnacl", "npm:0.14.5"]
+          ],
+          "linkType": "HARD",
+        }]
+      ]],
+      ["bignumber.js", [
+        ["npm:9.0.1", {
+          "packageLocation": "./.yarn/cache/bignumber.js-npm-9.0.1-270d0c8a55-605e9639c4.zip/node_modules/bignumber.js/",
+          "packageDependencies": [
+            ["bignumber.js", "npm:9.0.1"]
           ],
           "linkType": "HARD",
         }]
@@ -10077,6 +10121,14 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
             ["follow-redirects", "npm:1.13.3"]
           ],
           "linkType": "SOFT",
+        }],
+        ["npm:1.5.10", {
+          "packageLocation": "./.yarn/cache/follow-redirects-npm-1.5.10-bde6f43576-6e58e02c31.zip/node_modules/follow-redirects/",
+          "packageDependencies": [
+            ["follow-redirects", "npm:1.5.10"],
+            ["debug", "virtual:71ea54087243fefc16fde4b11d95f9eb477e415c7421826db923917f0e4dceec4fe3d86d7bfb6c329c21b575806e6747ac2d62e670e3f6883a666e4b547ea8d6#npm:3.1.0"]
+          ],
+          "linkType": "HARD",
         }],
         ["virtual:d192f6b3b31cd5d11a443145a3883a70c04cbd7c813c53085dbaf50263735f1162f10fdbddd53c24e162ec3bc37b90966413084323739b7cf942b8bfb4da8831#npm:1.13.3", {
           "packageLocation": "./.yarn/$$virtual/follow-redirects-virtual-355f55dffb/0/cache/follow-redirects-npm-1.13.3-bc35dfad3e-9ad74c3b66.zip/node_modules/follow-redirects/",
