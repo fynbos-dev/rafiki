@@ -3,13 +3,13 @@ exports.up = function (knex) {
     table.uuid('id').notNullable().primary()
     // TODO userId
 
-    table.uuid('paymentIntentId').notNullable().index()
-    table
-      .foreign('paymentIntentId')
-      .references('paymentIntents.id')
-      .onDelete('CASCADE')
     table.string('state').notNullable() // PaymentState
     table.string('error').nullable()
+
+    table.string('intentPaymentPointer').nullable()
+    table.string('intentInvoiceUrl').nullable()
+    table.bigInteger('intentAmountToSend').nullable()
+    table.boolean('intentAutoApprove').notNullable()
 
     table.timestamp('quoteTimestamp').nullable()
     table.timestamp('quoteActivationDeadline').nullable()

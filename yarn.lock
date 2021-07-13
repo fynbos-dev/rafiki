@@ -4914,6 +4914,7 @@ __metadata:
     pg: ^8.6.0
     pino: ^6.11.3
     pino-pretty: ^4.7.1
+    rates: "workspace:packages/rates"
     testcontainers: ^7.11.1
     uuid: ^8.3.2
   languageName: unknown
@@ -6277,15 +6278,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"debug@npm:^2.2.0, debug@npm:^2.3.3":
-  version: 2.6.9
-  resolution: "debug@npm:2.6.9"
-  dependencies:
-    ms: 2.0.0
-  checksum: 559f44f98cf25e2ee489022aec173afbff746564cb108c4493becb95bc3c017a67bdaa25a0ff64801fd32c35051d00af0e56cc7f762ae2c3bc089496e5a1c31b
-  languageName: node
-  linkType: hard
-
 "debug@npm:^3.1.0":
   version: 3.2.7
   resolution: "debug@npm:3.2.7"
@@ -7319,13 +7311,6 @@ __metadata:
   version: 2.0.7
   resolution: "fast-safe-stringify@npm:2.0.7"
   checksum: 7bd22543263b707870d70c6f2336b6e8563e34d6807dc388cc0566895e31e0a8273af017a7eb1c9538d0ef54288284e1c0585b557bd856491295a847159fd929
-  languageName: node
-  linkType: hard
-
-"fast-safe-stringify@npm:^2.0.8":
-  version: 2.0.8
-  resolution: "fast-safe-stringify@npm:2.0.8"
-  checksum: 2198ef6c4917ac6ad7a3cff8b80abc2762c89a0c700548459288fce45598a2488c0ae393cd456b4212a8259fed9d1630303106efe4ae3b1c35dab2fb66526cdd
   languageName: node
   linkType: hard
 
@@ -8855,7 +8840,8 @@ __metadata:
     objection-db-errors: ^1.1.2
     oer-utils: ^5.1.2
     pg: ^8.6.0
-    pino: ^6.13.0
+    pino: ^6.11.3
+    rates: "workspace:packages/rates"
     raw-body: ^2.4.1
     rosie: ^2.1.0
     rxjs: ^6.6.7
@@ -12336,22 +12322,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pino@npm:^6.13.0":
-  version: 6.13.0
-  resolution: "pino@npm:6.13.0"
-  dependencies:
-    fast-redact: ^3.0.0
-    fast-safe-stringify: ^2.0.8
-    flatstr: ^1.0.12
-    pino-std-serializers: ^3.1.0
-    quick-format-unescaped: ^4.0.3
-    sonic-boom: ^1.0.2
-  bin:
-    pino: bin.js
-  checksum: 4fd045eeff8edffb8e5bd9677553f511155d1f56353d9a12a03880a7ca26a0eb29808705a2ace223dff9c77dc20c269b31e33591b73728c6f4f641cc968a1080
-  languageName: node
-  linkType: hard
-
 "pirates@npm:^4.0.1":
   version: 4.0.1
   resolution: "pirates@npm:4.0.1"
@@ -12666,12 +12636,10 @@ __metadata:
     "@types/pino": ^6.3.7
     "@types/sax": ^1.2.1
     axios: ^0.21.1
-    got: ^11.8.2
     koa: ^2.13.1
     nock: ^13.1.0
     node-mocks-http: ^1.10.1
     pino: ^6.11.3
-    pino-pretty: ^4.7.1
     sax: ^1.2.4
   languageName: unknown
   linkType: soft

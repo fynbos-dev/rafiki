@@ -1,8 +1,15 @@
 import { BaseModel } from '../shared/baseModel'
-import { Model, Pojo } from 'objection'
+import { Pojo } from 'objection'
 import { PaymentIntent } from '../payment_intent/model'
 
-const prefixes = ['quote', 'sourceAccount', 'destinationAccount', 'outcome']
+const prefixes = ['intent', 'quote', 'sourceAccount', 'destinationAccount', 'outcome']
+
+export type PaymentIntent = {
+  paymentPointer?: string
+  invoiceUrl?: string
+  amountToSend?: BigInt
+  autoApprove: boolean
+}
 
 export class OutgoingPayment extends BaseModel {
   public static tableName = 'outgoingPayments'
@@ -10,20 +17,22 @@ export class OutgoingPayment extends BaseModel {
   //  return 'outgoingPayments'
   //}
 
-  static relationMappings = {
-    incomingTokens: {
-      relation: Model.BelongsToOneRelation,
-      modelClass: PaymentIntent,
-      join: {
-        from: 'outgoingPayments.paymentIntentId',
-        to: 'paymentIntents.id'
-      }
-    }
-  }
+  //static relationMappings = {
+  //  incomingTokens: {
+  //    relation: Model.BelongsToOneRelation,
+  //    modelClass: PaymentIntent,
+  //    join: {
+  //      from: 'outgoingPayments.paymentIntentId',
+  //      to: 'paymentIntents.id'
+  //    }
+  //  }
+  //}
 
-  public paymentIntentId!: string
+  //public paymentIntentId!: string
   public state!: PaymentState
   public error?: string
+
+  public intent!: PaymentIntent
 
   public quote?: {
     timestamp: Date

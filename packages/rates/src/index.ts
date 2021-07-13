@@ -67,6 +67,10 @@ class RatesServiceImpl implements RatesService {
     return convert({ exchangeRate, ...opts })
   }
 
+  async prices(): Promise<Prices> {
+    return this.sharedLoad()
+  }
+
   private sharedLoad(): Promise<Prices> {
     if (this.pricesRequest && this.pricesExpiry) {
       if (this.pricesExpiry < new Date()) {
