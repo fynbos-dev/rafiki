@@ -2194,19 +2194,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@interledger/pay@npm:^0.2.2":
-  version: 0.2.2
-  resolution: "@interledger/pay@npm:0.2.2"
+"@interledger/pay@npm:^0.3.0":
+  version: 0.3.0
+  resolution: "@interledger/pay@npm:0.3.0"
   dependencies:
-    "@rgrove/parse-xml": ^2.0.2
-    axios: ^0.19.2
-    bignumber.js: ^9.0.0
+    abort-controller: ^3.0.0
     ilp-logger: ^1.4.2
     ilp-packet: ^3.1.2
-    ilp-protocol-ildcp: ^2.2.2
     ilp-protocol-stream: ^2.6.4
     long: ^4.0.0
-  checksum: aa2dc9e2535cd6ffbade8176688838c08ba4564db7e8cfa1ae00a3a97f5a1cf46087fb4870beadd32afd1cf16b75eb252a5d1a0cc19b2499eb708bea7e677f03
+    node-fetch: 2.6.1
+  checksum: 4ed42264cd846b1c95e1222d82d9d9433b2710f9ff232484ab504690d06d28d77c2e2538479bc4b80ebbee4d4d0800acaeffa840555ade8acf50ddccf9b8dc3e
   languageName: node
   linkType: hard
 
@@ -2681,13 +2679,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rgrove/parse-xml@npm:^2.0.2":
-  version: 2.0.4
-  resolution: "@rgrove/parse-xml@npm:2.0.4"
-  checksum: 9a754ff1a14a63426f930eb1319b14af27b07c0d3ed1f5da032ed53b84264e3cada952bfa6c99742619da125270afed15afcc5affaf682d851b8df9af69b5bad
-  languageName: node
-  linkType: hard
-
 "@samverschueren/stream-to-observable@npm:^0.3.0":
   version: 0.3.1
   resolution: "@samverschueren/stream-to-observable@npm:0.3.1"
@@ -2938,6 +2929,13 @@ __metadata:
   version: 2.8.12
   resolution: "@types/cors@npm:2.8.12"
   checksum: f3b62196df42c286282b9dbda26e24d2264211d932e7d9c2240f361e27ef693a5cb03790daeb3610fd958a0690f4d31d45ef7848b0df7a0dd2afc698a4f9df76
+  languageName: node
+  linkType: hard
+
+"@types/debounce@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "@types/debounce@npm:1.2.0"
+  checksum: c45dbc5fa369b9d29616f994a83ca6833a82ebdabbb455a92fed3c292d0f15482e6ba76c8fed7ea3c947df398fd89754880e38d6a247323dac467241f7ae5be0
   languageName: node
   linkType: hard
 
@@ -3394,7 +3392,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^10.1.0":
+"@types/node@npm:^10.1.0, @types/node@npm:^10.17.24":
   version: 10.17.60
   resolution: "@types/node@npm:10.17.60"
   checksum: af7e0b300da2b917555563d9bf770d1d07d9aa1930ec639336d5ba0a32e801e04f0291a658d0d0d77ce9f5df377c3018bf9de6416cee956bddd59de0e1b93d0f
@@ -3838,7 +3836,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"abort-controller@npm:3.0.0":
+"abort-controller@npm:3.0.0, abort-controller@npm:^3.0.0":
   version: 3.0.0
   resolution: "abort-controller@npm:3.0.0"
   dependencies:
@@ -4719,15 +4717,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"axios@npm:^0.19.2":
-  version: 0.19.2
-  resolution: "axios@npm:0.19.2"
-  dependencies:
-    follow-redirects: 1.5.10
-  checksum: bad346deea24050f9953ce09bb8015f85a99a7b8f016806adccfab0b8981827d1fbee9c77c0ef7c70cc48392c1af6bbc65e07c3e88221d17282d2d5fd0a191f6
-  languageName: node
-  linkType: hard
-
 "axios@npm:^0.21.1":
   version: 0.21.1
   resolution: "axios@npm:0.21.1"
@@ -4877,10 +4866,11 @@ __metadata:
     "@graphql-codegen/introspection": 1.18.2
     "@graphql-codegen/typescript": 1.22.2
     "@graphql-codegen/typescript-resolvers": 1.19.3
-    "@interledger/pay": ^0.2.2
+    "@interledger/pay": ^0.3.0
     "@interledger/stream-receiver": ^0.2.2
     "@koa/cors": ^3.1.0
     "@koa/router": ^10.0.0
+    "@types/debounce": ^1.2.0
     "@types/ioredis": ^4.22.3
     "@types/jest": ^26.0.22
     "@types/koa": ^2.13.3
@@ -4895,6 +4885,7 @@ __metadata:
     apollo-server-koa: ^2.25.1
     base64url: ^3.0.1
     cross-fetch: ^3.1.4
+    debounce: ^1.2.1
     fishery: ^1.2.0
     got: ^11.8.2
     graphile-scheduler: ^0.8.0
@@ -4902,6 +4893,9 @@ __metadata:
     graphql: ^15.5.0
     graphql-scalars: ^1.10.0
     graphql-tools: ^7.0.5
+    ilp-packet: ^3.1.2
+    ilp-plugin-http: ^1.6.1
+    ilp-protocol-ildcp: ^2.2.2
     ioredis: ^4.26.0
     knex: ^0.21.17
     koa: ^2.13.1
@@ -4969,13 +4963,6 @@ __metadata:
   dependencies:
     tweetnacl: ^0.14.3
   checksum: 3f57eb99bbc02352f68ff31e446997f4d21cc9a5e5286449dc1fe0116ec5dac5a4aa538967d45714fa9320312d2be8d16126f2d357da1dd40a3d546b96e097ed
-  languageName: node
-  linkType: hard
-
-"bignumber.js@npm:^9.0.0":
-  version: 9.0.1
-  resolution: "bignumber.js@npm:9.0.1"
-  checksum: 605e9639c413f344c37b23e919254f60a5017cc5ccd925e2f8fb79b36aa3d54f356df9c726f38465263236455f685d60dcf38dbe32cb0b7e4d2a32c94b035476
   languageName: node
   linkType: hard
 
@@ -6220,7 +6207,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"debounce@npm:^1.2.0":
+"debounce@npm:^1.2.0, debounce@npm:^1.2.1":
   version: 1.2.1
   resolution: "debounce@npm:1.2.1"
   checksum: 04a00c6c45173ac6fb03ad3a7cf742fa4a86f6bf86b22f5b867085f739d0010ad98cbb92e80d60293faf6efb5452c637941092bd8d783cfeabe55c2000b1b07f
@@ -6269,21 +6256,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"debug@npm:=3.1.0, debug@npm:~3.1.0":
-  version: 3.1.0
-  resolution: "debug@npm:3.1.0"
-  dependencies:
-    ms: 2.0.0
-  checksum: 1295acd5e0531761255661d325cd0a80ac8c5f6de8942a53bb23c2197ccb97526972de662ed0e5d9393be83f3428a298a6e7185ecb02f0da6282019cd2ffb4a8
-  languageName: node
-  linkType: hard
-
 "debug@npm:^3.1.0":
   version: 3.2.7
   resolution: "debug@npm:3.2.7"
   dependencies:
     ms: ^2.1.1
   checksum: 9fc1277e666db3af31df89e9e41f5c83da6e9de56d4a95b37e095d47ba1958238b8c7b49d4327b516465d46b6340bee723a97a7b2f28c5c7563f8b0a8fc9458a
+  languageName: node
+  linkType: hard
+
+"debug@npm:~3.1.0":
+  version: 3.1.0
+  resolution: "debug@npm:3.1.0"
+  dependencies:
+    ms: 2.0.0
+  checksum: 1295acd5e0531761255661d325cd0a80ac8c5f6de8942a53bb23c2197ccb97526972de662ed0e5d9393be83f3428a298a6e7185ecb02f0da6282019cd2ffb4a8
   languageName: node
   linkType: hard
 
@@ -7529,15 +7516,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"follow-redirects@npm:1.5.10":
-  version: 1.5.10
-  resolution: "follow-redirects@npm:1.5.10"
-  dependencies:
-    debug: =3.1.0
-  checksum: 6e58e02c31337b6b41ffc3d5f3d49920b7db428eddcf374537da00ef121fe473983e12d8557f4304287604168d3efcc288d1f009abaf4c9d61e5db0c0cee3c4a
-  languageName: node
-  linkType: hard
-
 "follow-redirects@npm:^1.10.0":
   version: 1.13.3
   resolution: "follow-redirects@npm:1.13.3"
@@ -8604,6 +8582,21 @@ __metadata:
     extensible-error: ^1.0.2
     oer-utils: ^5.1.2
   checksum: 0abf88ef80dfb47d3821e7ac99b817468d4ec6e50d0d82c2be413a3f6ad7dee56bb836243d518f86405d1006b42df9417d4811b41dae62538bd9d16cf5af723b
+  languageName: node
+  linkType: hard
+
+"ilp-plugin-http@npm:^1.6.1":
+  version: 1.6.1
+  resolution: "ilp-plugin-http@npm:1.6.1"
+  dependencies:
+    "@types/node": ^10.17.24
+    ilp-packet: ^3.0.9
+    ilp-protocol-ildcp: ^2.1.4
+    jsonwebtoken: ^8.4.0
+    koa: ^2.6.2
+    node-fetch: ^2.3.0
+    raw-body: ^2.3.3
+  checksum: 22ff8cae8abfd89db8aba421a8afd96a26006aca477fe8e34be2f16a02f474ad042899a22ee24a2d225b83c8a169176fad52527d3e58538d6c0a316ee8ed6902
   languageName: node
   linkType: hard
 
@@ -10190,7 +10183,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jsonwebtoken@npm:^8.5.1":
+"jsonwebtoken@npm:^8.4.0, jsonwebtoken@npm:^8.5.1":
   version: 8.5.1
   resolution: "jsonwebtoken@npm:8.5.1"
   dependencies:
@@ -10411,7 +10404,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"koa@npm:2.13.1, koa@npm:^2.13.1":
+"koa@npm:2.13.1, koa@npm:^2.13.1, koa@npm:^2.6.2":
   version: 2.13.1
   resolution: "koa@npm:2.13.1"
   dependencies:
@@ -11402,7 +11395,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-fetch@npm:2.6.1, node-fetch@npm:^2.6.1":
+"node-fetch@npm:2.6.1, node-fetch@npm:^2.3.0, node-fetch@npm:^2.6.1":
   version: 2.6.1
   resolution: "node-fetch@npm:2.6.1"
   checksum: cbb171635e538162b977eac5dfe7a1e07a9a02e991924377a6435502291e2f823d306b95aabc455caebf4a118ccf836868462bc70ccc3095af02bb9da61fda37

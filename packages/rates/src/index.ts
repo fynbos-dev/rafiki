@@ -4,6 +4,7 @@ import { convert, ConvertOptions, LoggingService } from './util'
 const REQUEST_TIMEOUT = 5_000 // millseconds
 
 export interface RatesService {
+  prices(): Promise<Prices>
   convert(
     opts: Omit<ConvertOptions, 'exchangeRate'>
   ): Promise<bigint | ConvertError>

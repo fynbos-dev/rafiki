@@ -3,8 +3,9 @@ exports.up = function (knex) {
     table.uuid('id').notNullable().primary()
     // TODO userId
 
-    table.string('state').notNullable() // PaymentState
+    table.string('state').notNullable().index() // PaymentState
     table.string('error').nullable()
+    table.integer('attempts').notNullable().defaultTo(0)
 
     table.string('intentPaymentPointer').nullable()
     table.string('intentInvoiceUrl').nullable()
@@ -13,25 +14,27 @@ exports.up = function (knex) {
 
     table.timestamp('quoteTimestamp').nullable()
     table.timestamp('quoteActivationDeadline').nullable()
-    table.string('quoteTargetType').nullable() // 'fixed-send' | 'fixed-delivery'
-    table.bigint('quoteMinDeliveryAmount').nullable()
-    table.bigint('quoteMaxSourceAmount').nullable()
+    table.string('quoteTargetType').nullable() // 'FixedSend' | 'FixedDelivery'
+    table.bigInteger('quoteMinDeliveryAmount').nullable()
+    table.bigInteger('quoteMaxSourceAmount').nullable()
+    table.bigInteger('quoteMaxPacketAmount').nullable()
     table.float('quoteMinExchangeRate').nullable()
     table.float('quoteLowExchangeRateEstimate').nullable()
     table.float('quoteHighExchangeRateEstimate').nullable()
-    table.integer('quoteEstimatedDuration').nullable() // milliseconds
+    //table.integer('quoteEstimatedDuration').nullable() // milliseconds
 
+    table.string('sourceAccountId').notNullable()
     table.integer('sourceAccountScale').notNullable()
     table.string('sourceAccountCode').notNullable()
     table.integer('destinationAccountScale').notNullable()
     table.string('destinationAccountCode').notNullable()
-    table.string('destinationAccountUrl').notNullable()
-    table.string('destinationAccountPaymentPointer').notNullable()
+    table.string('destinationAccountUrl').nullable()
+    table.string('destinationAccountPaymentPointer').nullable()
 
-    table.bigint('outcomeAmountSent').nullable()
-    table.bigint('outcomeSourceAmountInFlight').nullable()
-    table.bigint('outcomeAmountDelivered').nullable()
-    table.bigint('outcomeDestinationAmountInFlight').nullable()
+    table.bigInteger('outcomeAmountSent').nullable()
+    //table.bigInteger('outcomeSourceAmountInFlight').nullable()
+    table.bigInteger('outcomeAmountDelivered').nullable()
+    //table.bigInteger('outcomeDestinationAmountInFlight').nullable()
     // TODO streamReceipts
 
     table.timestamp('createdAt').defaultTo(knex.fn.now())

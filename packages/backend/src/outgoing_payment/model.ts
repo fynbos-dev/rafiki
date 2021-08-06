@@ -1,13 +1,20 @@
+import { Pojo, Model, ModelOptions, QueryContext } from 'objection'
+import * as Pay from '@interledger/pay'
 import { BaseModel } from '../shared/baseModel'
-import { Pojo } from 'objection'
-import { PaymentIntent } from '../payment_intent/model'
+import { PaymentProgress } from '../payment_progress/model'
 
-const prefixes = ['intent', 'quote', 'sourceAccount', 'destinationAccount', 'outcome']
+const prefixes = [
+  'intent',
+  'quote',
+  'sourceAccount',
+  'destinationAccount',
+  'outcome'
+]
 
 export type PaymentIntent = {
   paymentPointer?: string
   invoiceUrl?: string
-  amountToSend?: BigInt
+  amountToSend?: bigint
   autoApprove: boolean
 }
 
@@ -28,42 +35,65 @@ export class OutgoingPayment extends BaseModel {
   //  }
   //}
 
-  //public paymentIntentId!: string
+  static relationMappings = {
+    progress: {
+      relation: Model.HasOneRelation,
+      modelClass: PaymentProgress,
+      join: {
+        from: 'outgoingPayments.id',
+        to: 'paymentProgress.id'
+      }
+    }
+  }
+
   public state!: PaymentState
   public error?: string
+  public attempts!: number
 
   public intent!: PaymentIntent
 
   public quote?: {
     timestamp: Date
     activationDeadline: Date
-    targetType: PaymentTargetType
-    minDeliveryAmount: BigInt
-    maxSourceAmount: BigInt
+    targetType: Pay.PaymentType
+    minDeliveryAmount: bigint
+    maxSourceAmount: bigint
+    maxPacketAmount: bigint
     minExchangeRate: number
     lowExchangeRateEstimate: number
     highExchangeRateEstimate: number
-    estimatedDuration: number // milliseconds
+    //estimatedDuration: number // milliseconds
   }
   public sourceAccount!: {
+    id: string
     scale: number
     code: string
   }
   public destinationAccount!: {
     scale: number
     code: string
-    url: string
-    paymentPointer: string
+    url?: string
+    // XXX: why even store this in addition to url? it doesn't always exist (url does); from spec:
+    // Payment pointer, prefixed with "$", corresponding to the recipient Open Payments/SPSP account. Each payment pointer and its corresponding account URL identifies a unique payment recipient.
+    paymentPointer?: string
   }
   public outcome?: {
     amountSent: bigint
-    sourceAmountInFlight: bigint
     amountDelivered: bigint
-    destinationAmountInFlight: bigint
+  }
+
+  $beforeUpdate(opts: ModelOptions, queryContext: QueryContext): void {
+    super.$beforeUpdate(opts, queryContext)
+    if (this.state !== PaymentState.Cancelled) {
+      this.error = undefined
+    }
+    if (opts.old && opts.old['state'] !== this.state) {
+      this.attempts = 0
+    }
   }
 
   $formatDatabaseJson(json: Pojo): Pojo {
-    for (const group in prefixes) {
+    for (const group of prefixes) {
       if (!json[group]) continue
       for (const key in json[group]) {
         json[group + key.charAt(0).toUpperCase() + key.slice(1)] =
@@ -104,15 +134,15 @@ export class OutgoingPayment extends BaseModel {
     json = super.$parseDatabaseJson(json)
 
     for (const key in json) {
-      for (const prefix of prefixes) {
-        if (key.startsWith(prefix)) {
-          if (!json[prefix]) json[prefix] = {}
-          json[prefix][
-            key.charAt(0).toLowerCase() + key.slice(key.length + 1)
-          ] = json[key]
-          delete json[key]
-        }
+      const prefix = prefixes.find((prefix) => key.startsWith(prefix))
+      if (!prefix) continue
+      if (json[key] !== null) {
+        if (!json[prefix]) json[prefix] = {}
+        json[prefix][
+          key.charAt(prefix.length).toLowerCase() + key.slice(prefix.length + 1)
+        ] = json[key]
       }
+      delete json[key]
     }
 
     /*
@@ -144,19 +174,25 @@ export class OutgoingPayment extends BaseModel {
 }
 
 export enum PaymentState {
+  // Initial state. In this state, an empty trustline account is generated, and the payment is automatically resolved & quoted.
+  // On success, transition to `Ready`.
+  // On failure, transition to `Cancelled`.
   Inactive = 'Inactive',
-  Quoting = 'Quoting',
+  //Quoting = 'Quoting', // XXX
+  // Awaiting user approval. Approval is automatic if `autoApprove` is set.
+  // Once approved, transitions to `Activated`.
   Ready = 'Ready',
-  ErrorQuote = 'ErrorQuote',
+  // During activation, money from the user's (parent) account is moved to the trustline to reserve it for the payment.
+  // On success, transition to `Sending`.
   Activated = 'Activated',
-  Cancelled = 'Cancelled',
+  // Pay from the trustline account to the destination.
   Sending = 'Sending',
-  Completed = 'Completed',
-  ErrorAuto = 'ErrorAuto',
-  ErrorManual = 'ErrorManual'
-}
 
-export enum PaymentTargetType {
-  FixedSend = 'fixed-send',
-  FixedDelivery = 'fixed-delivery'
+  // Transitions to Cancelled once leftover reserved money is refunded to the parent account.
+  Cancelling = 'Cancelling',
+  // The payment failed. (Possibly some money was delivered, but not the fully payment).
+  // Requoting transitions to `Inactive`.
+  Cancelled = 'Cancelled',
+  // Successful completion.
+  Completed = 'Completed'
 }

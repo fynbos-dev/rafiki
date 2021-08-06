@@ -1,157 +1,137 @@
-import { setupPayment } from '@interledger/pay'
-import { BaseService } from '../shared/baseService'
-import { OutgoingPayment, PaymentIntent, PaymentState, PaymentTargetType } from './model'
-import { AccountService } from '../account/service'
+import * as Pay from '@interledger/pay'
 import { RatesService } from 'rates'
-import { IlpPlugin } from './plugin'
+import { BaseService } from '../shared/baseService'
+import { OutgoingPayment, PaymentIntent, PaymentState } from './model'
+import { AccountService } from '../account/service'
+import { PaymentProgressService } from '../payment_progress/service'
+import { IlpPlugin } from './ilp_plugin'
+import * as lifecycle from './lifecycle'
 
-// TODO where does this come from? constant? config? what is a reasonable default?
-const QUOTE_LIFESPAN = 5_000 // milliseconds
+import { Account } from '../account/model' // XXX
+
+interface TmpAccountService extends AccountService {
+  // XXX
+  createIlpSubAccount(superAccountId: string): Promise<Account>
+  extendCredit(accountId: string, amount: bigint): Promise<string | undefined>
+  revokeCredit(accountId: string, amount: bigint): Promise<string | undefined>
+  getAccountBalance(accountId: string): Promise<{ balance: bigint }>
+}
 
 export interface OutgoingPaymentService {
   get(id: string): Promise<OutgoingPayment>
-  create(paymentIntent: PaymentIntent): Promise<OutgoingPayment>
+  create(options: CreateOutgoingPaymentOptions): Promise<OutgoingPayment>
   activate(id: string): Promise<void>
   cancel(id: string): Promise<void>
   requote(id: string): Promise<void>
 }
 
 export interface ServiceDependencies extends BaseService {
-  accountService: AccountService
+  accountService: TmpAccountService
   ratesService: RatesService
   ilpPlugin: IlpPlugin
+  paymentProgressService: PaymentProgressService
 }
 
-export async function createOutgoingPaymentService(deps_: ServiceDependencies): Promise<OutgoingPaymentService> {
-  const deps = Object.assign({}, deps_, { logger: deps.logger.child({ service: 'OutgoingPaymentService' }) })
+export async function createOutgoingPaymentService(
+  deps_: ServiceDependencies
+): Promise<OutgoingPaymentService> {
+  const deps = {
+    ...deps_,
+    logger: deps_.logger.child({ service: 'OutgoingPaymentService' })
+  }
   return {
     get: (id) => getOutgoingPayment(deps, id),
-    create: (paymentIntent: PaymentIntent) => createOutgoingPayment(deps, paymentIntent),
+    create: (options: CreateOutgoingPaymentOptions) =>
+      createOutgoingPayment(deps, options),
     activate: (id) => activatePayment(deps, id),
     cancel: (id) => cancelPayment(deps, id),
     requote: (id) => requotePayment(deps, id)
+    //lifecycle: (id) => // TODO worker.ts?
   }
 }
 
-async function getOutgoingPayment (deps: ServiceDependencies, id: string): Promise<OutgoingPayment> {
+async function getOutgoingPayment(
+  deps: ServiceDependencies,
+  id: string
+): Promise<OutgoingPayment> {
   return OutgoingPayment.query(deps.knex).findById(id)
 }
 
-// TODO create state=Inactive OutgoingPayment in same transaction as PaymentIntent?
-async function createOutgoingPayment (deps: ServiceDependencies, paymentIntent: PaymentIntent): Promise<OutgoingPayment> {
-  const parentAccountId = // TODO
-  const sourceAccount = await deps.accountService.createSubAccount(parentAccountId)
-  const prices = await rates.prices()
+type CreateOutgoingPaymentOptions = PaymentIntent & { superAccountId: string }
 
-  const { startQuote, destinationAsset, accountUrl, paymentPointer } = await setupPayment({
+async function createOutgoingPayment(
+  deps: ServiceDependencies,
+  options: CreateOutgoingPaymentOptions
+): Promise<OutgoingPayment> {
+  const destination = await Pay.setupPayment({
     plugin: deps.ilpPlugin,
-    paymentPointer: paymentIntent.paymentPointer,
-    invoiceUrl: paymentIntent.invoiceUrl
+    paymentPointer: options.paymentPointer,
+    invoiceUrl: options.invoiceUrl
   })
 
-  const payment = await OutgoingPayment.query(deps.knex).insertAndFetch({
+  console.log('DESTINATION', destination)
+
+  const sourceAccount = await deps.accountService.createIlpSubAccount(
+    options.superAccountId
+  )
+
+  return await OutgoingPayment.query(deps.knex).insertAndFetch({
     state: PaymentState.Inactive,
-    intentPaymentPointer: paymentIntent.paymentPointer,
-    intentInvoiceUrl: paymentIntent.invoiceUrl,
-    intentAmountToSend: paymentIntent.amountToSend,
-    intentAutoApprove: paymentIntent.autoApprove,
-    parentAccountId,
-    //quoteTimestamp: new Date(),
-    //quoteActivationDeadline: new Date(Date.now() + QUOTE_LIFESPAN),
-    //quoteTargetType: paymentIntent.invoiceUrl ? PaymentTargetType.FixedDelivery : PaymentTargetType.FixedSend,
-    //quoteMinDeliveryAmount: quote.minDeliveryAmount,
-    //quoteMaxSourceAmount: quote.maxSourceAmount,
-    //quoteMinExchangeRate: quote.minExchangeRate,
-    //quoteLowExchangeRateEstimate: +quote.estimatedExchangeRate[0].toString(),
-    //quoteHighExchangeRateEstimate: +quote.estimatedExchangeRate[1].toString(),
-    //quoteEstimatedDuration: quote.estimatedDuration,
-    sourceAccountId: sourceAccount.id, // TODO add to model/migration
-    sourceAccountCode: sourceAccount.code,
-    sourceAccountScale: sourceAccount.scale,
-    destinationAccountScale: destinationAsset.scale,
-    destinationAccountCode: destinationAsset.code,
-    destinationAccountUrl: accountUrl,
-    destinationAccountPaymentPointer: paymentPointer
+    intent: {
+      paymentPointer: options.paymentPointer,
+      invoiceUrl: options.invoiceUrl,
+      amountToSend: options.amountToSend,
+      autoApprove: options.autoApprove
+    },
+    sourceAccount: {
+      id: sourceAccount.id,
+      code: sourceAccount.currency,
+      scale: sourceAccount.scale
+    },
+    destinationAccount: {
+      scale: destination.destinationAsset.scale,
+      code: destination.destinationAsset.code,
+      url: destination.accountUrl,
+      paymentPointer: destination.paymentPointer
+    }
   })
-
-  return payment
-  /*
-  return OutgoingPayment.query(deps.knex).insertAndFetch({
-    paymentIntentId: paymentIntent.id,
-    state: PaymentState.Ready,
-    quoteTimestamp: new Date(),
-    quoteActivationDeadline: new Date(Date.now() + QUOTE_LIFESPAN),
-    quoteTargetType: paymentIntent.invoiceUrl ? PaymentTargetType.FixedDelivery : PaymentTargetType.FixedSend,
-    quoteMinDeliveryAmount: quote.minDeliveryAmount,
-    quoteMaxSourceAmount: quote.maxSourceAmount,
-    quoteMinExchangeRate: quote.minExchangeRate,
-    quoteLowExchangeRateEstimate: +quote.estimatedExchangeRate[0].toString(),
-    quoteHighExchangeRateEstimate: +quote.estimatedExchangeRate[1].toString(),
-    quoteEstimatedDuration: quote.estimatedDuration,
-    sourceAccountCode: sourceAccount.code,
-    sourceAccountScale: sourceAccount.scale,
-    destinationAccountScale: destinationAsset.scale,
-    destinationAccountCode: destinationAsset.code,
-    destinationAccountUrl: accountUrl,
-    destinationAccountPaymentPointer: paymentPointer
-  })
-  */
 }
 
 function requotePayment(deps: ServiceDependencies, id: string): Promise<void> {
-  return deps.knex.transaction(async () => {
-    // "SELECT … FOR UPDATE" ensures that another simultaneous requote
-    // (or other operation) on this payment will wait.
-    // TODO maybe "SKIP LOCKED" also?
-    const payment = await OutgoingPayment.query(trx).forUpdate().findById(id)
-    if (
-      payment.state !== PaymentState.Inactive &&
-      payment.state !== PaymentState.ErrorQuote &&
-      payment.state !== PaymentState.ErrorManual
-    ) {
+  return deps.knex.transaction(async (trx) => {
+    const payment = await OutgoingPayment.query(trx).findById(id).forUpdate()
+    if (payment.state !== PaymentState.Cancelled) {
       throw new Error(`Cannot quote; payment is in state=${payment.state}`)
     }
-
-    const quote = await startQuote({
-      //slippage: // TODO on config or PaymentIntent
-      prices,
-      amountToSend: payment.intent.amountToSend,
-      sourceAsset: {
-        scale: sourceAccount.scale,
-        code: sourceAccount.code
-      }
-    }).catch(async (err) => {
-      await payment.patch({ state: PaymentState.ErrorQuote }) // TODO increment attempts?
-      return null
-    })
-    if (!quote) return payment
-
-    await deps.accountService.transferFunds({ // TODO trustlines?
-      sourceAccountId: payment.parentAccountId,
-      destinationAccountId: payment.sourceAccount.id,
-      sourceAmount: quote.maxSourceAmount,
-      destinationAmount: quote.maxSourceAmount,
-    })
-
-    await payment.patch({
-      state: PaymentState.Ready,
-      quoteTimestamp: new Date(),
-      quoteActivationDeadline: new Date(Date.now() + QUOTE_LIFESPAN),
-      quoteTargetType: payment.intent.invoiceUrl ? PaymentTargetType.FixedDelivery : PaymentTargetType.FixedSend,
-      quoteMinDeliveryAmount: quote.minDeliveryAmount,
-      quoteMaxSourceAmount: quote.maxSourceAmount,
-      quoteMinExchangeRate: quote.minExchangeRate,
-      quoteLowExchangeRateEstimate: +quote.estimatedExchangeRate[0].toString(),
-      quoteHighExchangeRateEstimate: +quote.estimatedExchangeRate[1].toString(),
-      quoteEstimatedDuration: quote.estimatedDuration,
-    })
-  }, { isolationLevel: 'repeatable read' })
+    await payment.$query().patch({ state: PaymentState.Inactive })
+  })
 }
 
-async function activatePayment(_deps: ServiceDependencies, _id: string): Promise<void> {
-  // TODO
+async function activatePayment(
+  deps: ServiceDependencies,
+  id: string
+): Promise<void> {
+  return deps.knex.transaction(async (trx) => {
+    const payment = await OutgoingPayment.query(trx).findById(id).forUpdate()
+    if (payment.state !== PaymentState.Ready) {
+      throw new Error(`Cannot activate; payment is in state=${payment.state}`)
+    }
+    await payment.$query().patch({ state: PaymentState.Activated })
+  })
 }
 
-async function cancelPayment(_deps: ServiceDependencies, _id: string): Promise<void> {
-  // TODO
+async function cancelPayment(
+  deps: ServiceDependencies,
+  id: string
+): Promise<void> {
+  return deps.knex.transaction(async (trx) => {
+    const payment = await OutgoingPayment.query(trx).findById(id).forUpdate()
+    if (payment.state !== PaymentState.Ready) {
+      throw new Error(`Cannot cancel; payment is in state=${payment.state}`)
+    }
+    await payment.$query().patch({
+      state: PaymentState.Cancelling,
+      error: lifecycle.LifecycleError.CancelledByAPI
+    })
+  })
 }

@@ -38,6 +38,10 @@ export const Config = {
     ? Buffer.from(process.env.STREAM_SECRET, 'base64')
     : crypto.randomBytes(32),
 
+  ilpUrl: envString('ILP_URL', 'http://127.0.0.1:3000/ilp'),
+  pricesUrl: process.env.PRICES_URL, // optional
+  pricesLifetime: +(process.env.PRICES_LIFETIME || 15_000),
+
   /** Frontend **/
   frontendUrl: envString('FRONTEND_URL', 'http://localhost:3000')
 }

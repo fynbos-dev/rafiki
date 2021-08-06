@@ -6,9 +6,13 @@ import { makeWorkerUtils } from 'graphile-worker'
 import { Ioc, IocContract } from '@adonisjs/fold'
 import IORedis from 'ioredis'
 
+import { createRatesService } from 'rates'
 import { App, AppServices } from './app'
 import { Config } from './config/app'
 import { GraphileProducer } from './messaging/graphileProducer'
+import { createPaymentProgressService } from './payment_progress/service'
+import { createOutgoingPaymentService } from './outgoing_payment/service'
+import { createIlpPlugin } from './outgoing_payment/ilp_plugin'
 import { createAccountService } from './account/service'
 import { createSPSPService } from './spsp/service'
 import { createInvoiceService } from './invoice/service'
@@ -129,6 +133,37 @@ export function initIocContainer(
       knex: knex,
       invoiceService,
       accountService
+    })
+  })
+
+  container.singleton('paymentProgressService', async (deps) => {
+    return await createPaymentProgressService({
+      logger: await deps.use('logger'),
+      knex: await deps.use('knex')
+    })
+  })
+
+  container.singleton('ratesService', async (deps) => {
+    const config = await deps.use('config')
+    return createRatesService({
+      logger: await deps.use('logger'),
+      pricesUrl: config.pricesUrl,
+      pricesLifetime: config.pricesLifetime
+    })
+  })
+
+  container.singleton('ilpPlugin', async (_deps) => {
+    return createIlpPlugin(config.ilpUrl)
+  })
+
+  container.singleton('outgoingPaymentService', async (deps) => {
+    return await createOutgoingPaymentService({
+      logger: await deps.use('logger'),
+      knex: await deps.use('knex'),
+      accountService: await deps.use('accountService2'), // XXX 2
+      paymentProgressService: await deps.use('paymentProgressService'),
+      ilpPlugin: await deps.use('ilpPlugin'),
+      ratesService: await deps.use('ratesService')
     })
   })
 
