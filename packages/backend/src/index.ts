@@ -157,7 +157,10 @@ export function initIocContainer(
   })
 
   container.singleton('outgoingPaymentService', async (deps) => {
+    const config = await deps.use('config')
     return await createOutgoingPaymentService({
+      slippage: config.slippage,
+      quoteLifespan: config.quoteLifespan,
       logger: await deps.use('logger'),
       knex: await deps.use('knex'),
       accountService: await deps.use('accountService2'), // XXX 2

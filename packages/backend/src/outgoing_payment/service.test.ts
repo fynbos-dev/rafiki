@@ -1,13 +1,7 @@
 import nock from 'nock'
 import Knex from 'knex'
+import * as Pay from '@interledger/pay'
 import { StreamServer } from '@interledger/stream-receiver'
-import {
-  deserializeIlpPrepare,
-  isIlpReply,
-  serializeIlpReply,
-  serializeIlpFulfill
-} from 'ilp-packet'
-import { serializeIldcpResponse } from 'ilp-protocol-ildcp'
 
 import { OutgoingPaymentService } from './service'
 import { createTestApp, TestContainer } from '../tests/app'
@@ -17,46 +11,11 @@ import { initIocContainer } from '../'
 import { AppServices } from '../app'
 import { truncateTables } from '../tests/tableManager'
 import { MockAccountService } from '../tests/mockAccounts'
-import { PaymentState } from './model'
-import { IlpPlugin } from './ilp_plugin'
+import { OutgoingPayment, PaymentState } from './model'
+import { MockPlugin } from './mock_plugin'
+import { LifecycleError } from './lifecycle'
 
-class MockPlugin implements IlpPlugin {
-  constructor(private server: StreamServer) {}
-  connect(): Promise<void> {
-    return Promise.resolve()
-  }
-  disconnect(): Promise<void> {
-    return Promise.resolve()
-  }
-  isConnected(): boolean {
-    return true
-  }
-
-  async sendData(data: Buffer): Promise<Buffer> {
-    // First, handle the initial IL-DCP request when the connection is created
-    const prepare = deserializeIlpPrepare(data)
-    if (prepare.destination === 'peer.config') {
-      return serializeIldcpResponse({
-        clientAddress: 'test.wallet',
-        assetCode: 'XRP',
-        assetScale: 9
-      })
-    } else {
-      const moneyOrReject = this.server.createReply(prepare)
-      if (isIlpReply(moneyOrReject)) {
-        return serializeIlpReply(moneyOrReject)
-      }
-
-      moneyOrReject.setTotalReceived(prepare.amount)
-      return serializeIlpFulfill(moneyOrReject.accept())
-    }
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  registerDataHandler(_handler: (data: Buffer) => Promise<Buffer>): void {}
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  deregisterDataHandler(): void {}
-}
+// TODO test that balance is refunded properly
 
 describe('OutgoingPaymentService', (): void => {
   let deps: IocContract<AppServices>
@@ -83,11 +42,17 @@ describe('OutgoingPaymentService', (): void => {
   beforeAll(
     async (): Promise<void> => {
       deps = await initIocContainer(Config)
-      deps.bind('ilpPlugin', async (_deps) => new MockPlugin(streamServer))
+      deps.bind('ilpPlugin', async (_deps) => new MockPlugin(streamServer, 0.5))
       deps.bind(
         'accountService2',
         async (_deps) => (accountService = new MockAccountService())
       ) // XXX 2
+      deps.bind('ratesService', async (_deps) => ({
+        prices: async () => ({
+          USD: 1.0,
+          XRP: 2.0
+        })
+      }))
       appContainer = await createTestApp(deps)
       knex = await deps.use('knex')
     }
@@ -95,11 +60,25 @@ describe('OutgoingPaymentService', (): void => {
 
   beforeEach(
     async (): Promise<void> => {
-      nock.cleanAll()
       outgoingPaymentService = await deps.use('outgoingPaymentService')
       superAccountId = (await accountService.create(9, 'USD')).id
+      accountService.setAccountBalance(superAccountId, BigInt(200))
+
+      nock('http://bob.example')
+        .get('/pay')
+        .reply(200, {
+          destination_account: credentials.ilpAddress,
+          shared_secret: credentials.sharedSecret.toString('base64')
+        })
+        .persist()
+      await knex.raw('TRUNCATE TABLE "outgoingPayments" RESTART IDENTITY')
     }
   )
+
+  afterEach((): void => {
+    nock.cleanAll()
+    jest.useRealTimers()
+  })
 
   afterAll(
     async (): Promise<void> => {
@@ -110,21 +89,9 @@ describe('OutgoingPaymentService', (): void => {
 
   describe('create', (): void => {
     it('creates an OutgoingPayment', async () => {
-      nock('http://bob.example')
-        .get('/pay')
-        .reply(200, {
-          destination_account: credentials.ilpAddress,
-          shared_secret: credentials.sharedSecret.toString('base64')
-        })
-      //{
-      //  destination_account: 'test.bob',
-      //  shared_secret: Buffer.alloc(32).toString('base64')
-      //})
-
       const payment = await outgoingPaymentService.create({
         superAccountId,
         paymentPointer: 'http://bob.example/pay',
-        //invoiceUrl?: string
         amountToSend: BigInt(123),
         autoApprove: false
       })
@@ -134,6 +101,9 @@ describe('OutgoingPaymentService', (): void => {
         amountToSend: BigInt(123),
         autoApprove: false
       })
+      await expect(
+        accountService.getAccountBalance(payment.sourceAccount.id)
+      ).resolves.toEqual({ balance: BigInt(0) })
       await expect(
         accountService.getAccountBalance(payment.sourceAccount.id)
       ).resolves.toEqual({ balance: BigInt(0) })
@@ -147,14 +117,173 @@ describe('OutgoingPaymentService', (): void => {
 
       const payment2 = await outgoingPaymentService.get(payment.id)
       expect(payment2.id).toEqual(payment.id)
-      //const id = uuid()
-      //const progress = await outgoingPaymentService.create(id)
-      //expect(progress.amountSent).toEqual(BigInt(0))
-      //expect(progress.amountDelivered).toEqual(BigInt(0))
+    })
+  })
 
-      //const progress2 = await outgoingPaymentService.get(id)
-      //if (!progress2) throw new Error
-      //expect(progress2.id).toEqual(id)
+  describe('processNext', (): void => {
+    describe('Inactive →', (): void => {
+      it('Ready (paymentPointer)', async (): Promise<void> => {
+        const paymentId = (
+          await outgoingPaymentService.create({
+            superAccountId,
+            paymentPointer: 'http://bob.example/pay',
+            amountToSend: BigInt(123),
+            autoApprove: false
+          })
+        ).id
+        await expect(outgoingPaymentService.processNext()).resolves.toBe(
+          paymentId
+        )
+        const payment = await OutgoingPayment.query(knex).findById(paymentId)
+
+        expect(payment.state).toEqual(PaymentState.Ready)
+        if (!payment.quote) throw 'no quote'
+        expect(payment.quote.timestamp).toBeInstanceOf(Date)
+        expect(
+          payment.quote.activationDeadline.getTime() - Date.now()
+        ).toBeGreaterThan(0)
+        expect(payment.quote.targetType).toBe(Pay.PaymentType.FixedSend)
+        expect(payment.quote.minDeliveryAmount).toBe(
+          BigInt(Math.ceil(123 * payment.quote.minExchangeRate.valueOf()))
+        )
+        expect(payment.quote.maxSourceAmount).toBe(BigInt(123))
+        expect(payment.quote.maxPacketAmount).toBe(
+          BigInt('9223372036854775807')
+        )
+        expect(payment.quote.minExchangeRate.valueOf()).toBe(
+          0.5 * (1 - Config.slippage)
+        )
+        expect(payment.quote.lowExchangeRateEstimate.valueOf()).toBe(0.5)
+        expect(payment.quote.highExchangeRateEstimate.valueOf()).toBe(0.5)
+      })
+    })
+
+    describe('Ready →', (): void => {
+      async function setup({
+        autoApprove
+      }: {
+        autoApprove: boolean
+      }): Promise<string> {
+        const paymentId = (
+          await outgoingPaymentService.create({
+            superAccountId,
+            paymentPointer: 'http://bob.example/pay',
+            amountToSend: BigInt(123),
+            autoApprove
+          })
+        ).id
+        // Inactive → Ready
+        await expect(outgoingPaymentService.processNext()).resolves.toBe(
+          paymentId
+        )
+        return paymentId
+      }
+
+      it('Cancelling (quote expired; autoApprove=false)', async (): Promise<void> => {
+        const paymentId = await setup({ autoApprove: false })
+        jest.useFakeTimers('modern')
+        jest.advanceTimersByTime(Config.quoteLifespan + 1)
+        await expect(outgoingPaymentService.processNext()).resolves.toBe(
+          paymentId
+        )
+
+        const payment = await OutgoingPayment.query(knex).findById(paymentId)
+        expect(payment.state).toBe(PaymentState.Cancelling)
+        expect(payment.error).toBe(LifecycleError.QuoteExpired)
+      })
+
+      it('Ready (autoApprove=false)', async (): Promise<void> => {
+        await setup({ autoApprove: false })
+        // (no change)
+        await expect(
+          outgoingPaymentService.processNext()
+        ).resolves.toBeUndefined()
+      })
+
+      it('Activated (autoApprove=true)', async (): Promise<void> => {
+        const paymentId = await setup({ autoApprove: true })
+        await expect(outgoingPaymentService.processNext()).resolves.toBe(
+          paymentId
+        )
+
+        const payment = await OutgoingPayment.query(knex).findById(paymentId)
+        expect(payment.state).toBe(PaymentState.Activated)
+      })
+    })
+
+    describe('Activated →', (): void => {
+      let paymentId: string
+
+      beforeEach(
+        async (): Promise<void> => {
+          paymentId = (
+            await outgoingPaymentService.create({
+              superAccountId,
+              paymentPointer: 'http://bob.example/pay',
+              amountToSend: BigInt(123),
+              autoApprove: true
+            })
+          ).id
+          // Inactive → Ready
+          await expect(outgoingPaymentService.processNext()).resolves.toBe(
+            paymentId
+          )
+          // Ready → Activated
+          await expect(outgoingPaymentService.processNext()).resolves.toBe(
+            paymentId
+          )
+        }
+      )
+
+      it('Cancelling (quote expired)', async (): Promise<void> => {
+        jest.useFakeTimers('modern')
+        jest.advanceTimersByTime(Config.quoteLifespan + 1)
+        await expect(outgoingPaymentService.processNext()).resolves.toBe(
+          paymentId
+        )
+
+        const payment = await OutgoingPayment.query(knex).findById(paymentId)
+        expect(payment.state).toBe(PaymentState.Cancelling)
+        expect(payment.error).toBe(LifecycleError.QuoteExpired)
+      })
+
+      it('Cancelling (insufficient balance)', async (): Promise<void> => {
+        accountService.setAccountBalance(superAccountId, BigInt(100))
+        await expect(outgoingPaymentService.processNext()).resolves.toBe(
+          paymentId
+        )
+
+        const payment = await OutgoingPayment.query(knex).findById(paymentId)
+        expect(payment.state).toBe(PaymentState.Cancelling)
+        expect(payment.error).toBe(LifecycleError.InsufficientBalance)
+      })
+
+      it('Cancelling (account service error)', async (): Promise<void> => {
+        const mockFn = jest
+          .spyOn(accountService, 'extendCredit')
+          .mockImplementation(async () => 'FooError')
+        await expect(outgoingPaymentService.processNext()).resolves.toBe(
+          paymentId
+        )
+        mockFn.mockRestore()
+
+        const payment = await OutgoingPayment.query(knex).findById(paymentId)
+        expect(payment.state).toBe(PaymentState.Cancelling)
+        expect(payment.error).toBe(LifecycleError.AccountServiceError)
+      })
+
+      it('Sending', async (): Promise<void> => {
+        await expect(outgoingPaymentService.processNext()).resolves.toBe(
+          paymentId
+        )
+
+        const payment = await OutgoingPayment.query(knex).findById(paymentId)
+        expect(payment.state).toBe(PaymentState.Sending)
+        if (!payment.quote) throw 'no quote'
+        await expect(
+          accountService.getAccountBalance(payment.sourceAccount.id)
+        ).resolves.toEqual({ balance: BigInt(payment.quote.maxSourceAmount) })
+      })
     })
   })
 })

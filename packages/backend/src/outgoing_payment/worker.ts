@@ -13,13 +13,13 @@ const maxAttempts: { [key in PaymentState]: number } = {
   Completed: 0
 }
 
-// Returns whether a pending payment was found.
+// Returns the id of the proceed payment (if any).
 export async function processPendingPayment(
   deps_: ServiceDependencies
-): Promise<boolean> {
+): Promise<string | undefined> {
   return deps_.knex.transaction(async (trx) => {
     const payment = await getPendingPayment({ ...deps_, knex: trx })
-    if (!payment) return false
+    if (!payment) return
 
     await handlePaymentLifecycle(
       {
@@ -32,7 +32,7 @@ export async function processPendingPayment(
       },
       payment
     )
-    return true
+    return payment.id
   })
   //}, { isolationLevel: 'repeatable read' })
 }
@@ -42,12 +42,11 @@ export async function getPendingPayment(
   deps: ServiceDependencies
 ): Promise<OutgoingPayment | undefined> {
   const payments = await OutgoingPayment.query(deps.knex)
-    .select('id')
     .limit(1)
-    // Don't wait for a payment that is already busy.
-    .skipLocked()
     // Ensure the payment cannot be processed concurrently by multiple workers.
     .forUpdate()
+    // Don't wait for a payment that is already busy.
+    .skipLocked()
     .whereIn('state', [
       PaymentState.Inactive,
       PaymentState.Activated,
@@ -77,6 +76,13 @@ export async function handlePaymentLifecycle(
   const onError = async (
     err: Error | lifecycle.PaymentError
   ): Promise<void> => {
+    console.log(
+      'ON_ERROR',
+      err,
+      payment.state,
+      'canRetryError:',
+      lifecycle.canRetryError(err)
+    ) // XXX
     const error = typeof err === 'string' ? err : err.message
     const attempts = payment.attempts + 1
     if (payment.state === PaymentState.Cancelling) {
@@ -91,14 +97,16 @@ export async function handlePaymentLifecycle(
         { state: payment.state, error, attempts },
         'payment lifecycle failed; retrying'
       )
-      await payment.$query().patch({ attempts })
+      await payment.$query(deps.knex).patch({ attempts })
     } else {
       // Too many attempts; cancel payment.
       deps.logger.warn(
         { state: payment.state, error, attempts },
         'payment lifecycle failed; cancelling'
       )
-      await payment.$query().patch({ state: PaymentState.Cancelling, error })
+      await payment
+        .$query(deps.knex)
+        .patch({ state: PaymentState.Cancelling, error })
     }
   }
 

@@ -73,7 +73,7 @@ export class OutgoingPayment extends BaseModel {
     scale: number
     code: string
     url?: string
-    // XXX: why even store this in addition to url? it doesn't always exist (url does); from spec:
+    // TODO: why even store this in addition to url? it doesn't always exist (url does); from spec:
     // Payment pointer, prefixed with "$", corresponding to the recipient Open Payments/SPSP account. Each payment pointer and its corresponding account URL identifies a unique payment recipient.
     paymentPointer?: string
   }
@@ -84,7 +84,10 @@ export class OutgoingPayment extends BaseModel {
 
   $beforeUpdate(opts: ModelOptions, queryContext: QueryContext): void {
     super.$beforeUpdate(opts, queryContext)
-    if (this.state !== PaymentState.Cancelled) {
+    if (
+      this.state !== PaymentState.Cancelling &&
+      this.state !== PaymentState.Cancelled
+    ) {
       this.error = undefined
     }
     if (opts.old && opts.old['state'] !== this.state) {

@@ -6,6 +6,7 @@ import { AccountService } from '../account/service'
 import { PaymentProgressService } from '../payment_progress/service'
 import { IlpPlugin } from './ilp_plugin'
 import * as lifecycle from './lifecycle'
+import * as worker from './worker'
 
 import { Account } from '../account/model' // XXX
 
@@ -23,9 +24,12 @@ export interface OutgoingPaymentService {
   activate(id: string): Promise<void>
   cancel(id: string): Promise<void>
   requote(id: string): Promise<void>
+  processNext(): Promise<string | undefined>
 }
 
 export interface ServiceDependencies extends BaseService {
+  slippage: number
+  quoteLifespan: number // milliseconds
   accountService: TmpAccountService
   ratesService: RatesService
   ilpPlugin: IlpPlugin
@@ -45,7 +49,8 @@ export async function createOutgoingPaymentService(
       createOutgoingPayment(deps, options),
     activate: (id) => activatePayment(deps, id),
     cancel: (id) => cancelPayment(deps, id),
-    requote: (id) => requotePayment(deps, id)
+    requote: (id) => requotePayment(deps, id),
+    processNext: () => worker.processPendingPayment(deps)
     //lifecycle: (id) => // TODO worker.ts?
   }
 }
@@ -68,8 +73,6 @@ async function createOutgoingPayment(
     paymentPointer: options.paymentPointer,
     invoiceUrl: options.invoiceUrl
   })
-
-  console.log('DESTINATION', destination)
 
   const sourceAccount = await deps.accountService.createIlpSubAccount(
     options.superAccountId
@@ -103,7 +106,7 @@ function requotePayment(deps: ServiceDependencies, id: string): Promise<void> {
     if (payment.state !== PaymentState.Cancelled) {
       throw new Error(`Cannot quote; payment is in state=${payment.state}`)
     }
-    await payment.$query().patch({ state: PaymentState.Inactive })
+    await payment.$query(trx).patch({ state: PaymentState.Inactive })
   })
 }
 
@@ -116,7 +119,7 @@ async function activatePayment(
     if (payment.state !== PaymentState.Ready) {
       throw new Error(`Cannot activate; payment is in state=${payment.state}`)
     }
-    await payment.$query().patch({ state: PaymentState.Activated })
+    await payment.$query(trx).patch({ state: PaymentState.Activated })
   })
 }
 
@@ -129,7 +132,7 @@ async function cancelPayment(
     if (payment.state !== PaymentState.Ready) {
       throw new Error(`Cannot cancel; payment is in state=${payment.state}`)
     }
-    await payment.$query().patch({
+    await payment.$query(trx).patch({
       state: PaymentState.Cancelling,
       error: lifecycle.LifecycleError.CancelledByAPI
     })

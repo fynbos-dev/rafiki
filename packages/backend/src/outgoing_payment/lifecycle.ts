@@ -4,10 +4,9 @@ import { debounce } from 'debounce'
 import { OutgoingPayment, PaymentState } from './model'
 import { ServiceDependencies } from './service'
 
-const QUOTE_LIFESPAN = 5 * 60_000 // milliseconds
-const SLIPPAGE = 0.01
 // Minimum interval between progress updates.
 const PROGRESS_UPDATE_INTERVAL = 200 // milliseconds
+const MAX_INT64 = BigInt('9223372036854775807')
 
 export type PaymentError = LifecycleError | Pay.PaymentError
 export enum LifecycleError {
@@ -61,7 +60,7 @@ export async function handleQuoting(
     // This is always the full payment amount, even when part of that amount has already successfully been delivered.
     // The quote's amounts are adjusted `handleSending` to reflect the actual payment state.
     amountToSend: payment.intent.amountToSend,
-    slippage: SLIPPAGE,
+    slippage: deps.slippage,
     prices
   }).finally(() => {
     return Pay.closeConnection(deps.ilpPlugin, destination).catch((err) => {
@@ -75,15 +74,16 @@ export async function handleQuoting(
     })
   })
 
-  await payment.$query().patch({
+  await payment.$query(deps.knex).patch({
     state: PaymentState.Ready,
     quote: {
       timestamp: new Date(),
-      activationDeadline: new Date(Date.now() + QUOTE_LIFESPAN),
+      activationDeadline: new Date(Date.now() + deps.quoteLifespan),
       targetType: quote.paymentType,
       minDeliveryAmount: quote.minDeliveryAmount,
       maxSourceAmount: quote.maxSourceAmount,
-      maxPacketAmount: quote.maxPacketAmount,
+      maxPacketAmount:
+        MAX_INT64 < quote.maxPacketAmount ? MAX_INT64 : quote.maxPacketAmount,
       minExchangeRate: quote.minExchangeRate.valueOf(),
       lowExchangeRateEstimate: quote.lowEstimatedExchangeRate.valueOf(),
       highExchangeRateEstimate: quote.highEstimatedExchangeRate.valueOf()
@@ -101,7 +101,7 @@ export async function handleReady(
     throw LifecycleError.QuoteExpired
   }
   if (payment.intent.autoApprove) {
-    await payment.$query().patch({ state: PaymentState.Activated })
+    await payment.$query(deps.knex).patch({ state: PaymentState.Activated })
     deps.logger.debug('auto-approve')
   }
 }
@@ -132,7 +132,7 @@ export async function handleActivation(
     deps.logger.warn({ error: res }, 'extend credit error')
     throw LifecycleError.AccountServiceError
   }
-  await payment.$query().patch({ state: PaymentState.Sending })
+  await payment.$query(deps.knex).patch({ state: PaymentState.Sending })
 }
 
 export async function handleSending(
@@ -244,7 +244,7 @@ export async function handleSending(
 
   // Restore leftover reserved money to the parent account.
   await refundLeftoverBalance(deps, payment)
-  await payment.$query().patch({
+  await payment.$query(deps.knex).patch({
     state: PaymentState.Completed,
     outcome: {
       amountSent: outcomeAmountSent,
@@ -258,7 +258,7 @@ export async function handleCancelling(
   payment: OutgoingPayment
 ): Promise<void> {
   await refundLeftoverBalance(deps, payment)
-  await payment.$query().patch({ state: PaymentState.Cancelled })
+  await payment.$query(deps.knex).patch({ state: PaymentState.Cancelled })
 }
 
 // Refund money in the subaccount to the parent account.

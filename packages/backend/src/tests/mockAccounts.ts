@@ -66,6 +66,11 @@ export class MockAccountService {
     return { balance: this._get(accountId)._balance }
   }
 
+  // For testing
+  setAccountBalance(accountId: string, balance: bigint): void {
+    this._get(accountId)._balance = balance
+  }
+
   _get(accountId: string): FakeAccount {
     const account = this.accounts.get(accountId)
     if (!account) throw new Error('no account')

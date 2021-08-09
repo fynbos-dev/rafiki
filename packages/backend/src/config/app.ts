@@ -10,6 +10,11 @@ function envInt(name: string, value: number): number {
   return envValue == null ? value : parseInt(envValue)
 }
 
+function envFloat(name: string, value: number): number {
+  const envValue = process.env[name]
+  return envValue == null ? value : +envValue
+}
+
 // function envBool(name: string, value: boolean): boolean {
 //   const envValue = process.env[name]
 //   return envValue == null ? value : Boolean(envValue)
@@ -41,6 +46,9 @@ export const Config = {
   ilpUrl: envString('ILP_URL', 'http://127.0.0.1:3000/ilp'),
   pricesUrl: process.env.PRICES_URL, // optional
   pricesLifetime: +(process.env.PRICES_LIFETIME || 15_000),
+
+  slippage: envFloat('SLIPPAGE', 0.01),
+  quoteLifespan: envInt('QUOTE_LIFESPAN', 5 * 60_000), // milliseconds
 
   /** Frontend **/
   frontendUrl: envString('FRONTEND_URL', 'http://localhost:3000')

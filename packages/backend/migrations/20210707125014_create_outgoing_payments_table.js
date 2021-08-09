@@ -1,7 +1,7 @@
 exports.up = function (knex) {
   return knex.schema.createTable('outgoingPayments', function (table) {
     table.uuid('id').notNullable().primary()
-    // TODO userId
+    // TODO userId/superAccountId/rootAccountId?
 
     table.string('state').notNullable().index() // PaymentState
     table.string('error').nullable()
@@ -35,7 +35,7 @@ exports.up = function (knex) {
     //table.bigInteger('outcomeSourceAmountInFlight').nullable()
     table.bigInteger('outcomeAmountDelivered').nullable()
     //table.bigInteger('outcomeDestinationAmountInFlight').nullable()
-    // TODO streamReceipts
+    // TODO streamReceipts?
 
     table.timestamp('createdAt').defaultTo(knex.fn.now())
     table.timestamp('updatedAt').defaultTo(knex.fn.now())
