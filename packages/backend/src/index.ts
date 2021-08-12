@@ -12,7 +12,7 @@ import { Config } from './config/app'
 import { GraphileProducer } from './messaging/graphileProducer'
 import { createPaymentProgressService } from './payment_progress/service'
 import { createOutgoingPaymentService } from './outgoing_payment/service'
-import { createIlpPlugin } from './outgoing_payment/ilp_plugin'
+import { createIlpPlugin, IlpPlugin } from './outgoing_payment/ilp_plugin'
 import { createAccountService } from './account/service'
 import { createSPSPService } from './spsp/service'
 import { createInvoiceService } from './invoice/service'
@@ -152,8 +152,13 @@ export function initIocContainer(
     })
   })
 
-  container.singleton('ilpPlugin', async (_deps) => {
-    return createIlpPlugin(config.ilpUrl)
+  container.singleton('makeIlpPlugin', async (_deps) => {
+    return (sourceAccount: string): IlpPlugin => {
+      //const token = config.streamSecret)
+      // TODO figure out how the connector will allow auth-bypass XXX
+      const token = sourceAccount
+      return createIlpPlugin(config.ilpUrl, `Bearer ${token}`)
+    }
   })
 
   container.singleton('outgoingPaymentService', async (deps) => {
@@ -165,7 +170,8 @@ export function initIocContainer(
       knex: await deps.use('knex'),
       accountService: await deps.use('accountService2'), // XXX 2
       paymentProgressService: await deps.use('paymentProgressService'),
-      ilpPlugin: await deps.use('ilpPlugin'),
+      //ilpPlugin: await deps.use('ilpPlugin'),
+      makeIlpPlugin: await deps.use('makeIlpPlugin'),
       ratesService: await deps.use('ratesService')
     })
   })

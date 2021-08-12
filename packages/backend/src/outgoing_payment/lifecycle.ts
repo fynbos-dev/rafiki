@@ -8,6 +8,8 @@ import { ServiceDependencies } from './service'
 const PROGRESS_UPDATE_INTERVAL = 200 // milliseconds
 const MAX_INT64 = BigInt('9223372036854775807')
 
+// TODO the outcome must be accurate when a payment reaches Cancelled (even on partial payment)
+
 export type PaymentError = LifecycleError | Pay.PaymentError
 export enum LifecycleError {
   QuoteExpired = 'QuoteExpired',
@@ -33,8 +35,9 @@ export async function handleQuoting(
     throw LifecycleError.PricesUnavailable
   })
 
+  const plugin = deps.makeIlpPlugin(payment.sourceAccount.id)
   const destination = await Pay.setupPayment({
-    plugin: deps.ilpPlugin,
+    plugin,
     paymentPointer: payment.intent.paymentPointer,
     invoiceUrl: payment.intent.invoiceUrl
   })
@@ -51,7 +54,7 @@ export async function handleQuoting(
   )
 
   const quote = await Pay.startQuote({
-    plugin: deps.ilpPlugin,
+    plugin,
     destination,
     sourceAsset: {
       scale: payment.sourceAccount.scale,
@@ -63,7 +66,7 @@ export async function handleQuoting(
     slippage: deps.slippage,
     prices
   }).finally(() => {
-    return Pay.closeConnection(deps.ilpPlugin, destination).catch((err) => {
+    return Pay.closeConnection(plugin, destination).catch((err) => {
       deps.logger.warn(
         {
           destination: destination.destinationAddress,
@@ -146,8 +149,9 @@ export async function handleSending(
   const baseAmountSent = progress.amountSent
   const baseAmountDelivered = progress.amountDelivered
 
+  const plugin = deps.makeIlpPlugin(payment.sourceAccount.id)
   const destination = await Pay.setupPayment({
-    plugin: deps.ilpPlugin,
+    plugin,
     paymentPointer: payment.intent.paymentPointer,
     invoiceUrl: payment.intent.invoiceUrl
   })
@@ -189,7 +193,6 @@ export async function handleSending(
     throw LifecycleError.InvalidRatio
   }
   const quote = {
-    //...payment.quote,
     paymentType: payment.quote.targetType,
     // Adjust quoted amounts to account for prior partial payment.
     maxSourceAmount: payment.quote.maxSourceAmount - baseAmountSent,
@@ -201,30 +204,39 @@ export async function handleSending(
   }
 
   let updateProgress = Promise.resolve()
-  const receipt = await Pay.pay({
-    plugin: deps.ilpPlugin,
-    destination,
-    quote,
-    progressHandler
-  })
-    .finally(async () => {
-      progressHandler.flush()
-      // Wait for updateProgress to finish to avoid a race where it could update
-      // outside the protection of the locked payment.
-      await updateProgress
-    })
-    .finally(() => {
-      return Pay.closeConnection(deps.ilpPlugin, destination).catch((err) => {
-        // Ignore connection close failures, all of the money was delivered.
-        deps.logger.warn(
-          {
-            destination: destination.destinationAddress,
-            error: err.message
-          },
-          'close pay connection failed'
-        )
-      })
-    })
+  // The "maxSourceAmount" is 0 when the payment is already fully paid, but the last attempt's transaction just didn't commit.
+  // TODO code formatting?: XXX
+  const receipt =
+    quote.maxSourceAmount === BigInt(0)
+      ? {
+          error: null,
+          amountSent: BigInt(0),
+          amountDelivered: BigInt(0)
+        }
+      : await Pay.pay({
+          plugin,
+          destination,
+          quote,
+          progressHandler
+        })
+          .finally(async () => {
+            progressHandler.flush()
+            // Wait for updateProgress to finish to avoid a race where it could update
+            // outside the protection of the locked payment.
+            await updateProgress
+          })
+          .finally(() => {
+            return Pay.closeConnection(plugin, destination).catch((err) => {
+              // Ignore connection close failures, all of the money was delivered.
+              deps.logger.warn(
+                {
+                  destination: destination.destinationAddress,
+                  error: err.message
+                },
+                'close pay connection failed'
+              )
+            })
+          })
 
   const outcomeAmountSent = baseAmountSent + receipt.amountSent
   const outcomeAmountDelivered = baseAmountDelivered + receipt.amountDelivered

@@ -10,6 +10,8 @@ import * as worker from './worker'
 
 import { Account } from '../account/model' // XXX
 
+// TODO ilpPlugin MUST disconnect() to prevent memory leaks (in lifecycle.ts too) (use .finally()?)
+
 interface TmpAccountService extends AccountService {
   // XXX
   createIlpSubAccount(superAccountId: string): Promise<Account>
@@ -32,7 +34,8 @@ export interface ServiceDependencies extends BaseService {
   quoteLifespan: number // milliseconds
   accountService: TmpAccountService
   ratesService: RatesService
-  ilpPlugin: IlpPlugin
+  //ilpPlugin: IlpPlugin
+  makeIlpPlugin: (sourceAccount: string) => IlpPlugin
   paymentProgressService: PaymentProgressService
 }
 
@@ -69,7 +72,7 @@ async function createOutgoingPayment(
   options: CreateOutgoingPaymentOptions
 ): Promise<OutgoingPayment> {
   const destination = await Pay.setupPayment({
-    plugin: deps.ilpPlugin,
+    plugin: deps.makeIlpPlugin(options.superAccountId),
     paymentPointer: options.paymentPointer,
     invoiceUrl: options.invoiceUrl
   })

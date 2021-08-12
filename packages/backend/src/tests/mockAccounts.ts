@@ -10,7 +10,7 @@ type FakeAccount = {
 }
 
 export class MockAccountService {
-  private accounts: Map<string, FakeAccount> = new Map()
+  public data: { [key: string]: FakeAccount } = {}
 
   async create(scale: number, currency: string): Promise<Account> {
     const id = uuid()
@@ -20,7 +20,7 @@ export class MockAccountService {
       currency,
       _balance: BigInt(0)
     }
-    this.accounts.set(id, account)
+    this.data[id] = account
     return (account as unknown) as Account
   }
 
@@ -34,7 +34,7 @@ export class MockAccountService {
       superAccountId,
       _balance: BigInt(0)
     }
-    this.accounts.set(id, account)
+    this.data[id] = account
     return (account as unknown) as Account
   }
 
@@ -71,8 +71,16 @@ export class MockAccountService {
     this._get(accountId)._balance = balance
   }
 
+  modifyAccountBalance(accountId: string, diff: bigint): boolean {
+    const account = this._get(accountId)
+    const newBalance = account._balance + diff
+    if (newBalance < 0) return false
+    account._balance += diff
+    return true
+  }
+
   _get(accountId: string): FakeAccount {
-    const account = this.accounts.get(accountId)
+    const account = this.data[accountId]
     if (!account) throw new Error('no account')
     return account
   }

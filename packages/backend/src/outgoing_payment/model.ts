@@ -47,7 +47,8 @@ export class OutgoingPayment extends BaseModel {
   }
 
   public state!: PaymentState
-  public error?: string
+  // The "| null" is necessary so that `$beforeUpdate` can modify a patch to remove the error. If `$beforeUpdate` set `error = undefined`, the patch would ignore the modification.
+  public error?: string | null
   public attempts!: number
 
   public intent!: PaymentIntent
@@ -85,12 +86,14 @@ export class OutgoingPayment extends BaseModel {
   $beforeUpdate(opts: ModelOptions, queryContext: QueryContext): void {
     super.$beforeUpdate(opts, queryContext)
     if (
+      opts.old &&
+      opts.old['error'] &&
       this.state !== PaymentState.Cancelling &&
       this.state !== PaymentState.Cancelled
     ) {
-      this.error = undefined
+      this.error = null
     }
-    if (opts.old && opts.old['state'] !== this.state) {
+    if (opts.old && this.state && opts.old['state'] !== this.state) {
       this.attempts = 0
     }
   }

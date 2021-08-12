@@ -10,19 +10,20 @@ export interface IlpPlugin {
   deregisterDataHandler: () => void
 }
 
-export function createIlpPlugin(url: string): OutgoingIlpPlugin {
-  return new OutgoingIlpPlugin(url)
+export function createIlpPlugin(url: string, token: string): OutgoingIlpPlugin {
+  return new OutgoingIlpPlugin(url, token)
 }
 
 export class OutgoingIlpPlugin extends PluginHttp implements IlpPlugin {
-  constructor(url: string) {
+  constructor(url: string, staticToken: string) {
     super({
+      // "incoming" is a not actually used. connect() is overridden so that no server is started.
       incoming: {
-        // "incoming" is a not actually used. connect() is overridden so that no server is started.
-        port: 1234
+        port: 0
       },
       outgoing: {
-        url
+        url,
+        staticToken
       }
     })
   }
