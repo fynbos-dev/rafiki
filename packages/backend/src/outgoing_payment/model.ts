@@ -88,6 +88,7 @@ export class OutgoingPayment extends BaseModel {
     if (
       opts.old &&
       opts.old['error'] &&
+      this.state &&
       this.state !== PaymentState.Cancelling &&
       this.state !== PaymentState.Cancelled
     ) {
@@ -107,38 +108,11 @@ export class OutgoingPayment extends BaseModel {
       }
       delete json[group]
     }
-
-    /*
-    if (this.quote) {
-      json.quoteTimestamp = this.quote.timestamp
-      json.quoteActivationDeadline = this.quote.activationDeadline
-      json.quoteTargetType = this.quote.targetType
-      json.quoteMinDeliveryAmount = this.quote.minDeliveryAmount
-      json.quoteMaxSourceAmount = this.quote.maxSourceAmount
-      json.quoteMinExchangeRate = this.quote.minExchangeRate
-      json.quoteLowExchangeRateEstimate = this.quote.lowExchangeRateEstimate
-      json.quoteHighExchangeRateEstimate = this.quote.highExchangeRateEstimate
-      json.quoteEstimatedDuration = this.quote.estimatedDuration
-    }
-    json.sourceAccountCode = this.sourceAccount.code
-    json.sourceAccountScale = this.sourceAccount.scale
-    json.destinationAccountScale = this.destinationAccount.scale
-    json.destinationAccountCode = this.destinationAccount.code
-    json.destinationAccountUrl = this.destinationAccount.url
-    json.destinationAccountPaymentPointer = this.destinationAccount.paymentPointer
-    if (this.outcome) {
-      json.outcomeAmountSent = this.outcome.amountSent
-      json.outcomeSourceAmountInFlight = this.outcome.sourceAmountInFlight
-      json.outcomeAmountDelivered = this.outcome.amountDelivered
-      json.outcomeDestinationAmountInFlight = this.outcome.destinationAmountInFlight
-    }
-    */
     return super.$formatDatabaseJson(json)
   }
 
   $parseDatabaseJson(json: Pojo): Pojo {
     json = super.$parseDatabaseJson(json)
-
     for (const key in json) {
       const prefix = prefixes.find((prefix) => key.startsWith(prefix))
       if (!prefix) continue
@@ -150,31 +124,6 @@ export class OutgoingPayment extends BaseModel {
       }
       delete json[key]
     }
-
-    /*
-    this.quote = {
-      timestamp: json.quoteTimestamp,
-      activationDeadline: json.quoteActivationDeadline,
-      targetType: json.quoteTargetType,
-      minDeliveryAmount: json.quoteMinDeliveryAmount,
-      maxSourceAmount: json.quoteMaxSourceAmount,
-      minExchangeRate: json.quoteMinExchangeRate,
-      lowExchangeRateEstimate: json.quoteLowExchangeRateEstimate,
-      highExchangeRateEstimate: json.quoteHighExchangeRateEstimate,
-      estimatedDuration: json.quoteEstimatedDuration,
-    }
-    if (Object.values(this.quote).all((v) => v === null)) this.quote = undefined
-    this.sourceAccount = {
-      code: json.sourceAccountCode,
-      scale: json.sourceAccountScale
-    }
-    this.destinationAccount = {
-      scale: json.destinationAccountScale,
-      code: json.destinationAccountCode,
-      url: json.destinationAccountUrl,
-      paymentPointer: json.destinationAccountPaymentPointer,
-    }
-    */
     return json
   }
 }
@@ -184,7 +133,6 @@ export enum PaymentState {
   // On success, transition to `Ready`.
   // On failure, transition to `Cancelled`.
   Inactive = 'Inactive',
-  //Quoting = 'Quoting', // XXX
   // Awaiting user approval. Approval is automatic if `autoApprove` is set.
   // Once approved, transitions to `Activated`.
   Ready = 'Ready',

@@ -85,12 +85,10 @@ export async function handlePaymentLifecycle(
     ) // XXX
     const error = typeof err === 'string' ? err : err.message
     const attempts = payment.attempts + 1
-    if (payment.state === PaymentState.Cancelling) {
-      // The payment was explicitly cancelled, so don't retry.
-      deps.logger.warn({ error }, 'payment lifecycle failed while cancelling')
-    } else if (
-      attempts < maxAttempts[payment.state] &&
-      lifecycle.canRetryError(err)
+
+    if (
+      payment.state === PaymentState.Cancelling ||
+      (attempts < maxAttempts[payment.state] && lifecycle.canRetryError(err))
     ) {
       // TODO backoff between attempts?
       deps.logger.warn(

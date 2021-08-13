@@ -11,6 +11,7 @@ import * as worker from './worker'
 import { Account } from '../account/model' // XXX
 
 // TODO ilpPlugin MUST disconnect() to prevent memory leaks (in lifecycle.ts too) (use .finally()?)
+// TODO stream receipts
 
 interface TmpAccountService extends AccountService {
   // XXX
@@ -54,7 +55,6 @@ export async function createOutgoingPaymentService(
     cancel: (id) => cancelPayment(deps, id),
     requote: (id) => requotePayment(deps, id),
     processNext: () => worker.processPendingPayment(deps)
-    //lifecycle: (id) => // TODO worker.ts?
   }
 }
 

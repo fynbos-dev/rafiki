@@ -205,7 +205,6 @@ export async function handleSending(
 
   let updateProgress = Promise.resolve()
   // The "maxSourceAmount" is 0 when the payment is already fully paid, but the last attempt's transaction just didn't commit.
-  // TODO code formatting?: XXX
   const receipt =
     quote.maxSourceAmount === BigInt(0)
       ? {
