@@ -71,8 +71,6 @@ export async function handlePaymentLifecycle(
   deps: ServiceDependencies,
   payment: OutgoingPayment
 ): Promise<void> {
-  //const payment = await OutgoingPayment.query(deps.knex).forUpdate().findById(paymentId)
-
   const onError = async (
     err: Error | lifecycle.PaymentError
   ): Promise<void> => {
@@ -108,15 +106,39 @@ export async function handlePaymentLifecycle(
     }
   }
 
+  // Plugins are cleaned up in `finally` to avoid leaking http2 connections.
+  let plugin: IlpPlugin
   switch (payment.state) {
     case PaymentState.Inactive:
-      return lifecycle.handleQuoting(deps, payment).catch(onError)
+      plugin = deps.makeIlpPlugin(payment.sourceAccount.id)
+      return lifecycle
+        .handleQuoting(deps, payment, plugin)
+        .catch(onError)
+        .finally(() => {
+          plugin.disconnect().catch((err: Error) => {
+            deps.logger.warn(
+              { error: err.message },
+              'error disconnecting plugin'
+            )
+          })
+        })
     case PaymentState.Ready:
       return lifecycle.handleReady(deps, payment).catch(onError)
     case PaymentState.Activated:
       return lifecycle.handleActivation(deps, payment).catch(onError)
     case PaymentState.Sending:
-      return lifecycle.handleSending(deps, payment).catch(onError)
+      plugin = deps.makeIlpPlugin(payment.sourceAccount.id)
+      return lifecycle
+        .handleSending(deps, payment, plugin)
+        .catch(onError)
+        .finally(() => {
+          plugin.disconnect().catch((err: Error) => {
+            deps.logger.warn(
+              { error: err.message },
+              'error disconnecting plugin'
+            )
+          })
+        })
     case PaymentState.Cancelling:
       return lifecycle.handleCancelling(deps, payment).catch(onError)
     default:

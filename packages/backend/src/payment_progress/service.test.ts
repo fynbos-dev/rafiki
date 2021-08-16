@@ -64,4 +64,40 @@ describe('PaymentProgressService', (): void => {
       expect(progress2.id).toEqual(id)
     })
   })
+
+  describe('increase', (): void => {
+    it('updates the amounts', async () => {
+      const id = uuid()
+      await paymentProgressService.create(id)
+
+      await paymentProgressService.increase(id, {
+        amountSent: BigInt(2),
+        amountDelivered: BigInt(3)
+      })
+
+      await expect(paymentProgressService.get(id)).resolves.toMatchObject({
+        amountSent: BigInt(2),
+        amountDelivered: BigInt(3)
+      })
+    })
+
+    it('does not decrease the amounts', async () => {
+      const id = uuid()
+      await paymentProgressService.create(id)
+
+      await paymentProgressService.increase(id, {
+        amountSent: BigInt(2),
+        amountDelivered: BigInt(3)
+      })
+      await paymentProgressService.increase(id, {
+        amountSent: BigInt(1),
+        amountDelivered: BigInt(2)
+      })
+
+      await expect(paymentProgressService.get(id)).resolves.toMatchObject({
+        amountSent: BigInt(2),
+        amountDelivered: BigInt(3)
+      })
+    })
+  })
 })

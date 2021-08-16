@@ -31,8 +31,8 @@ exports.up = function (knex) {
     table.string('destinationAccountUrl').nullable()
     table.string('destinationAccountPaymentPointer').nullable()
 
-    table.bigInteger('outcomeAmountSent').nullable()
-    table.bigInteger('outcomeAmountDelivered').nullable()
+    //table.bigInteger('outcomeAmountSent').nullable()
+    //table.bigInteger('outcomeAmountDelivered').nullable()
     // TODO streamReceipts?
 
     table.timestamp('createdAt').defaultTo(knex.fn.now())

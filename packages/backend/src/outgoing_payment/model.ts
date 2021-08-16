@@ -25,8 +25,8 @@ export class OutgoingPayment extends BaseModel {
   //}
 
   //static relationMappings = {
-  //  incomingTokens: {
-  //    relation: Model.BelongsToOneRelation,
+  //  outcome: {
+  //    relation: Model.,
   //    modelClass: PaymentIntent,
   //    join: {
   //      from: 'outgoingPayments.paymentIntentId',
@@ -36,7 +36,7 @@ export class OutgoingPayment extends BaseModel {
   //}
 
   static relationMappings = {
-    progress: {
+    outcome: {
       relation: Model.HasOneRelation,
       modelClass: PaymentProgress,
       join: {
@@ -78,10 +78,7 @@ export class OutgoingPayment extends BaseModel {
     // Payment pointer, prefixed with "$", corresponding to the recipient Open Payments/SPSP account. Each payment pointer and its corresponding account URL identifies a unique payment recipient.
     paymentPointer?: string
   }
-  public outcome?: {
-    amountSent: bigint
-    amountDelivered: bigint
-  }
+  public readonly outcome?: PaymentProgress
 
   $beforeUpdate(opts: ModelOptions, queryContext: QueryContext): void {
     super.$beforeUpdate(opts, queryContext)

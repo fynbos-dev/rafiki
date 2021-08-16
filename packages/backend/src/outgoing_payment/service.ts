@@ -10,7 +10,6 @@ import * as worker from './worker'
 
 import { Account } from '../account/model' // XXX
 
-// TODO ilpPlugin MUST disconnect() to prevent memory leaks (in lifecycle.ts too) (use .finally()?)
 // TODO stream receipts
 
 interface TmpAccountService extends AccountService {
@@ -35,7 +34,6 @@ export interface ServiceDependencies extends BaseService {
   quoteLifespan: number // milliseconds
   accountService: TmpAccountService
   ratesService: RatesService
-  //ilpPlugin: IlpPlugin
   makeIlpPlugin: (sourceAccount: string) => IlpPlugin
   paymentProgressService: PaymentProgressService
 }
@@ -62,7 +60,9 @@ async function getOutgoingPayment(
   deps: ServiceDependencies,
   id: string
 ): Promise<OutgoingPayment> {
-  return OutgoingPayment.query(deps.knex).findById(id)
+  return OutgoingPayment.query(deps.knex)
+    .findById(id)
+    .withGraphJoined('outcome')
 }
 
 type CreateOutgoingPaymentOptions = PaymentIntent & { superAccountId: string }
@@ -71,10 +71,15 @@ async function createOutgoingPayment(
   deps: ServiceDependencies,
   options: CreateOutgoingPaymentOptions
 ): Promise<OutgoingPayment> {
+  const plugin = deps.makeIlpPlugin(options.superAccountId)
   const destination = await Pay.setupPayment({
-    plugin: deps.makeIlpPlugin(options.superAccountId),
+    plugin,
     paymentPointer: options.paymentPointer,
     invoiceUrl: options.invoiceUrl
+  }).finally(() => {
+    plugin.disconnect().catch((err) => {
+      deps.logger.warn({ error: err.message }, 'error disconnecting plugin')
+    })
   })
 
   const sourceAccount = await deps.accountService.createIlpSubAccount(

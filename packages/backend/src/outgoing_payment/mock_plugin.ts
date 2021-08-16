@@ -15,6 +15,7 @@ export class MockPlugin implements IlpPlugin {
   public exchangeRate: number
   private sourceAccount: string
   private accountService: MockAccountService
+  private connected = true
 
   constructor({
     streamServer,
@@ -38,11 +39,12 @@ export class MockPlugin implements IlpPlugin {
   }
 
   disconnect(): Promise<void> {
+    this.connected = false
     return Promise.resolve()
   }
 
   isConnected(): boolean {
-    return true
+    return this.connected
   }
 
   async sendData(data: Buffer): Promise<Buffer> {

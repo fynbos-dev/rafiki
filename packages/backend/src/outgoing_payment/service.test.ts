@@ -25,7 +25,7 @@ describe('OutgoingPaymentService', (): void => {
   let knex: Knex
   let superAccountId: string
   let credentials: StreamCredentials
-  const plugins: { [sourceAccount: string]: MockPlugin } = {}
+  let plugins: { [sourceAccount: string]: MockPlugin } = {}
 
   const streamServer = new StreamServer({
     serverSecret: Buffer.from(
@@ -40,7 +40,7 @@ describe('OutgoingPaymentService', (): void => {
     expectState?: PaymentState
   ): Promise<OutgoingPayment> {
     await expect(outgoingPaymentService.processNext()).resolves.toBe(paymentId)
-    const payment = await OutgoingPayment.query(knex).findById(paymentId)
+    const payment = await outgoingPaymentService.get(paymentId)
     if (expectState) expect(payment.state).toBe(expectState)
     return payment
   }
@@ -131,6 +131,12 @@ describe('OutgoingPaymentService', (): void => {
     nock.cleanAll()
     jest.useRealTimers()
     jest.restoreAllMocks()
+
+    for (const plugin of Object.values(plugins)) {
+      // Plugins must be cleaned up, otherwise ilp-plugin-http can leak http2 connections.
+      expect(plugin.isConnected()).toBe(false)
+    }
+    plugins = {}
   })
 
   afterAll(
@@ -344,10 +350,10 @@ describe('OutgoingPaymentService', (): void => {
         const payment = await processNext(paymentId, PaymentState.Completed)
 
         if (!payment.outcome) throw 'no outcome'
-        expect(payment.outcome).toEqual({
-          amountSent: payment.quote?.maxSourceAmount,
-          amountDelivered: payment.quote?.minDeliveryAmount
-        })
+        expect(payment.outcome.amountSent).toBe(payment.quote?.maxSourceAmount)
+        expect(payment.outcome.amountDelivered).toBe(
+          payment.quote?.minDeliveryAmount
+        )
         expect(plugins[payment.sourceAccount.id].totalReceived).toBe(
           payment.outcome.amountDelivered
         )
@@ -375,10 +381,12 @@ describe('OutgoingPaymentService', (): void => {
 
         if (!payment.quote) throw 'no quote'
         if (!payment.outcome) throw 'no outcome'
-        expect(payment.outcome).toEqual({
-          amountSent: payment.quote.minDeliveryAmount * BigInt(2),
-          amountDelivered: payment.quote.minDeliveryAmount
-        })
+        expect(payment.outcome.amountSent).toBe(
+          payment.quote.minDeliveryAmount * BigInt(2)
+        )
+        expect(payment.outcome.amountDelivered).toBe(
+          payment.quote.minDeliveryAmount
+        )
         expect(plugins[payment.sourceAccount.id].totalReceived).toBe(
           payment.outcome.amountDelivered
         )
@@ -409,19 +417,13 @@ describe('OutgoingPaymentService', (): void => {
         // Pretend that the transaction didn't commit.
         await OutgoingPayment.query(knex)
           .findById(paymentId)
-          .patch({
-            state: PaymentState.Sending,
-            outcome: {
-              amountSent: BigInt(0),
-              amountDelivered: BigInt(0)
-            }
-          })
+          .patch({ state: PaymentState.Sending })
         const payment = await processNext(paymentId, PaymentState.Completed)
 
-        expect(payment.outcome).toEqual({
-          amountSent: payment.quote?.maxSourceAmount,
-          amountDelivered: payment.quote?.minDeliveryAmount
-        })
+        expect(payment.outcome?.amountSent).toBe(payment.quote?.maxSourceAmount)
+        expect(payment.outcome?.amountDelivered).toBe(
+          payment.quote?.minDeliveryAmount
+        )
         // The retry doesn't pay anything (this is the retry's plugin).
         expect(plugins[payment.sourceAccount.id].totalReceived).toBe(
           payment.quote?.minDeliveryAmount
@@ -469,13 +471,8 @@ describe('OutgoingPaymentService', (): void => {
 
         const payment = await processNext(paymentId, PaymentState.Cancelling)
         expect(payment.error).toBe('ReceiverProtocolViolation')
-        // Not updated yet.
-        expect(payment.outcome).toBeUndefined()
-
-        const progress = await paymentProgressService.get(paymentId)
-        if (!progress) throw 'no progress'
-        expect(progress.amountSent).toBe(BigInt(10))
-        expect(progress.amountDelivered).toBe(BigInt(5))
+        expect(payment.outcome?.amountSent).toBe(BigInt(10))
+        expect(payment.outcome?.amountDelivered).toBe(BigInt(5))
       })
 
       it('→Sending→Completed (partial payment, resume, complete)', async (): Promise<void> => {
@@ -497,16 +494,26 @@ describe('OutgoingPaymentService', (): void => {
         // The next attempt is without the mock, so it succeeds.
         const payment = await processNext(paymentId, PaymentState.Completed)
 
-        expect(payment.outcome).toEqual({
-          amountSent: amountToSend,
-          amountDelivered: amountToSend / BigInt(2)
-        })
+        expect(payment.outcome?.amountSent).toBe(amountToSend)
+        expect(payment.outcome?.amountDelivered).toBe(amountToSend / BigInt(2))
 
         await expect(
           accountService.getAccountBalance(superAccountId)
         ).resolves.toEqual({
           balance: BigInt(200) - amountToSend
         })
+      })
+
+      it('Sending (progress update fails)', async (): Promise<void> => {
+        jest
+          .spyOn(paymentProgressService, 'increase')
+          .mockImplementation(() => Promise.reject(new Error('sql error')))
+        const paymentId = await setup({
+          paymentPointer: 'http://wallet.example/paymentpointer/bob',
+          amountToSend: BigInt(123)
+        })
+        const payment = await processNext(paymentId, PaymentState.Sending)
+        expect(payment.attempts).toBe(1)
       })
     })
 
@@ -538,7 +545,8 @@ describe('OutgoingPaymentService', (): void => {
         const payment = await processNext(paymentId, PaymentState.Cancelled)
 
         expect(payment.error).toBe('InvoiceAlreadyPaid')
-        expect(payment.outcome).toBeUndefined()
+        expect(payment.outcome?.amountSent).toBe(BigInt(0))
+        expect(payment.outcome?.amountDelivered).toBe(BigInt(0))
         // All reserved money was refunded.
         await expect(
           accountService.getAccountBalance(superAccountId)

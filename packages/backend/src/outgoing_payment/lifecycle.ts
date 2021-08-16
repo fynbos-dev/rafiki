@@ -3,12 +3,11 @@ import * as Pay from '@interledger/pay'
 import { debounce } from 'debounce'
 import { OutgoingPayment, PaymentState } from './model'
 import { ServiceDependencies } from './service'
+import { IlpPlugin } from './ilp_plugin'
 
 // Minimum interval between progress updates.
 const PROGRESS_UPDATE_INTERVAL = 200 // milliseconds
 const MAX_INT64 = BigInt('9223372036854775807')
-
-// TODO the outcome must be accurate when a payment reaches Cancelled (even on partial payment)
 
 export type PaymentError = LifecycleError | Pay.PaymentError
 export enum LifecycleError {
@@ -29,13 +28,13 @@ export enum LifecycleError {
 
 export async function handleQuoting(
   deps: ServiceDependencies,
-  payment: OutgoingPayment
+  payment: OutgoingPayment,
+  plugin: IlpPlugin
 ): Promise<void> {
   const prices = await deps.ratesService.prices().catch((_err: Error) => {
     throw LifecycleError.PricesUnavailable
   })
 
-  const plugin = deps.makeIlpPlugin(payment.sourceAccount.id)
   const destination = await Pay.setupPayment({
     plugin,
     paymentPointer: payment.intent.paymentPointer,
@@ -90,8 +89,8 @@ export async function handleQuoting(
       minExchangeRate: quote.minExchangeRate.valueOf(),
       lowExchangeRateEstimate: quote.lowEstimatedExchangeRate.valueOf(),
       highExchangeRateEstimate: quote.highEstimatedExchangeRate.valueOf()
+      //estimatedDuration: quote.estimatedDuration,
     }
-    //quoteEstimatedDuration: quote.estimatedDuration,
   })
 }
 
@@ -123,11 +122,6 @@ export async function handleActivation(
     payment.sourceAccount.id,
     payment.quote.maxSourceAmount
   )
-  //const res = await deps.accountService.extendCredit({
-  //  accountId: payment.sourceAccount.id,
-  //  amount: payment.quote.maxSourceAmount,
-  //  autoApply: true
-  //})
   if (res === 'InsufficientBalance') {
     throw LifecycleError.InsufficientBalance
   } else if (res) {
@@ -140,7 +134,8 @@ export async function handleActivation(
 
 export async function handleSending(
   deps: ServiceDependencies,
-  payment: OutgoingPayment
+  payment: OutgoingPayment,
+  plugin: IlpPlugin
 ): Promise<void> {
   if (!payment.quote) throw LifecycleError.MissingQuote
   const progress =
@@ -149,21 +144,41 @@ export async function handleSending(
   const baseAmountSent = progress.amountSent
   const baseAmountDelivered = progress.amountDelivered
 
-  const plugin = deps.makeIlpPlugin(payment.sourceAccount.id)
   const destination = await Pay.setupPayment({
     plugin,
     paymentPointer: payment.intent.paymentPointer,
     invoiceUrl: payment.intent.invoiceUrl
   })
 
+  const updateProgress = (receipt: Pay.PaymentProgress): Promise<void> =>
+    deps.paymentProgressService.increase(payment.id, {
+      amountSent: baseAmountSent + receipt.amountSent,
+      amountDelivered: baseAmountDelivered + receipt.amountDelivered
+    })
+
+  const lastAmountSent = baseAmountSent
+  const lastAmountDelivered = baseAmountDelivered
   // Debounce progress updates so that a tiny max-packet-amount doesn't trigger a flood of updates.
   const progressHandler = debounce((receipt: Pay.PaymentProgress): void => {
+    if (
+      lastAmountSent === receipt.amountSent &&
+      lastAmountDelivered === receipt.amountDelivered
+    ) {
+      // The only changes are the receipt's in-flight amounts, so don't update the payment progress.
+      return
+    }
     // These updates occur in a separate transaction from the OutgoingPayment, so they commit immediately.
     // They are still implicitly protected from race conditions via the OutgoingPayment's SELECT FOR UPDATE.
-    updateProgress = updateProgress.finally(() =>
-      progress.$query().patch({
-        amountSent: baseAmountSent + receipt.amountSent,
-        amountDelivered: baseAmountDelivered + receipt.amountDelivered
+    updates = updates.finally(() =>
+      updateProgress(receipt).catch((err) => {
+        deps.logger.warn(
+          {
+            amountSent: baseAmountSent + receipt.amountSent,
+            amountDelivered: baseAmountDelivered + receipt.amountDelivered,
+            error: err.message
+          },
+          'error updating progress'
+        )
       })
     )
   }, PROGRESS_UPDATE_INTERVAL)
@@ -203,14 +218,15 @@ export async function handleSending(
     minExchangeRate
   }
 
-  let updateProgress = Promise.resolve()
+  let updates = Promise.resolve()
   // The "maxSourceAmount" is 0 when the payment is already fully paid, but the last attempt's transaction just didn't commit.
   const receipt =
     quote.maxSourceAmount === BigInt(0)
       ? {
-          error: null,
           amountSent: BigInt(0),
-          amountDelivered: BigInt(0)
+          amountDelivered: BigInt(0),
+          sourceAmountInFlight: BigInt(0),
+          destinationAmountInFlight: BigInt(0)
         }
       : await Pay.pay({
           plugin,
@@ -220,9 +236,9 @@ export async function handleSending(
         })
           .finally(async () => {
             progressHandler.flush()
-            // Wait for updateProgress to finish to avoid a race where it could update
+            // Wait for updates to finish to avoid a race where it could update
             // outside the protection of the locked payment.
-            await updateProgress
+            await updates
           })
           .finally(() => {
             return Pay.closeConnection(plugin, destination).catch((err) => {
@@ -236,6 +252,9 @@ export async function handleSending(
               )
             })
           })
+  // The other updates are allowed to fail (since there will be more).
+  // This last update *must* succeed before the payment state is updated.
+  await updateProgress(receipt)
 
   const outcomeAmountSent = baseAmountSent + receipt.amountSent
   const outcomeAmountDelivered = baseAmountDelivered + receipt.amountDelivered
@@ -255,13 +274,7 @@ export async function handleSending(
 
   // Restore leftover reserved money to the parent account.
   await refundLeftoverBalance(deps, payment)
-  await payment.$query(deps.knex).patch({
-    state: PaymentState.Completed,
-    outcome: {
-      amountSent: outcomeAmountSent,
-      amountDelivered: outcomeAmountDelivered
-    }
-  })
+  await payment.$query(deps.knex).patch({ state: PaymentState.Completed })
 }
 
 export async function handleCancelling(
@@ -287,11 +300,6 @@ async function refundLeftoverBalance(
     payment.sourceAccount.id,
     balance.balance
   )
-  //const res = await deps.accountService.revokeCredit({
-  //  accountId: payment.sourceAccount.id,
-  //  amount: balance.balance,
-  //  autoApprove: true
-  //})
   if (res) {
     deps.logger.warn({ error: res }, 'revoke credit error')
     throw LifecycleError.AccountServiceError
