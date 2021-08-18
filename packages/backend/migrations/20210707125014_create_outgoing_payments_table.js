@@ -1,7 +1,6 @@
 exports.up = function (knex) {
   return knex.schema.createTable('outgoingPayments', function (table) {
     table.uuid('id').notNullable().primary()
-    // TODO userId/superAccountId/rootAccountId?
 
     table.string('state').notNullable().index() // PaymentState
     table.string('error').nullable()

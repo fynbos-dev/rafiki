@@ -20,9 +20,9 @@ export enum LifecycleError {
   InsufficientBalance = 'InsufficientBalance',
   // Error from the account service, except an InsufficientBalance. (see: CreditError)
   AccountServiceError = 'AccountServiceError',
-  // This error shouldn't ever trigger, it is just to satisfy types.
+
+  // These errors shouldn't ever trigger (impossible states), but they exist to satisfy types:
   MissingQuote = 'MissingQuote',
-  // This error shouldn't ever trigger, it is just to satisfy types.
   InvalidRatio = 'InvalidRatio'
 }
 
@@ -84,6 +84,7 @@ export async function handleQuoting(
       targetType: quote.paymentType,
       minDeliveryAmount: quote.minDeliveryAmount,
       maxSourceAmount: quote.maxSourceAmount,
+      // Cap at MAX_INT64 because of postgres type limits.
       maxPacketAmount:
         MAX_INT64 < quote.maxPacketAmount ? MAX_INT64 : quote.maxPacketAmount,
       minExchangeRate: quote.minExchangeRate.valueOf(),

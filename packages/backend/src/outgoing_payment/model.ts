@@ -3,7 +3,7 @@ import * as Pay from '@interledger/pay'
 import { BaseModel } from '../shared/baseModel'
 import { PaymentProgress } from '../payment_progress/model'
 
-const prefixes = [
+const fieldPrefixes = [
   'intent',
   'quote',
   'sourceAccount',
@@ -19,21 +19,7 @@ export type PaymentIntent = {
 }
 
 export class OutgoingPayment extends BaseModel {
-  public static tableName = 'outgoingPayments'
-  //public static get tableName(): string {
-  //  return 'outgoingPayments'
-  //}
-
-  //static relationMappings = {
-  //  outcome: {
-  //    relation: Model.,
-  //    modelClass: PaymentIntent,
-  //    join: {
-  //      from: 'outgoingPayments.paymentIntentId',
-  //      to: 'paymentIntents.id'
-  //    }
-  //  }
-  //}
+  public static readonly tableName = 'outgoingPayments'
 
   static relationMappings = {
     outcome: {
@@ -97,13 +83,13 @@ export class OutgoingPayment extends BaseModel {
   }
 
   $formatDatabaseJson(json: Pojo): Pojo {
-    for (const group of prefixes) {
-      if (!json[group]) continue
-      for (const key in json[group]) {
-        json[group + key.charAt(0).toUpperCase() + key.slice(1)] =
-          json[group][key]
+    for (const prefix of fieldPrefixes) {
+      if (!json[prefix]) continue
+      for (const key in json[prefix]) {
+        json[prefix + key.charAt(0).toUpperCase() + key.slice(1)] =
+          json[prefix][key]
       }
-      delete json[group]
+      delete json[prefix]
     }
     return super.$formatDatabaseJson(json)
   }
@@ -111,7 +97,7 @@ export class OutgoingPayment extends BaseModel {
   $parseDatabaseJson(json: Pojo): Pojo {
     json = super.$parseDatabaseJson(json)
     for (const key in json) {
-      const prefix = prefixes.find((prefix) => key.startsWith(prefix))
+      const prefix = fieldPrefixes.find((prefix) => key.startsWith(prefix))
       if (!prefix) continue
       if (json[key] !== null) {
         if (!json[prefix]) json[prefix] = {}
@@ -141,7 +127,7 @@ export enum PaymentState {
 
   // Transitions to Cancelled once leftover reserved money is refunded to the parent account.
   Cancelling = 'Cancelling',
-  // The payment failed. (Possibly some money was delivered, but not the fully payment).
+  // The payment failed. (Though some money may have been delivered).
   // Requoting transitions to `Inactive`.
   Cancelled = 'Cancelled',
   // Successful completion.

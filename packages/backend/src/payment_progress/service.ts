@@ -59,12 +59,10 @@ async function increasePaymentProgress(
   await PaymentProgress.query(deps.knex)
     .findById(paymentId)
     .patch({
-      amountSent: objection.raw('GREATEST(??, ?)', [
-        'amountSent',
+      amountSent: objection.raw('GREATEST("amountSent", ?)', [
         newAmounts.amountSent
       ]),
-      amountDelivered: objection.raw('GREATEST(??, ?)', [
-        'amountDelivered',
+      amountDelivered: objection.raw('GREATEST("amountDelivered", ?)', [
         newAmounts.amountDelivered
       ])
     })

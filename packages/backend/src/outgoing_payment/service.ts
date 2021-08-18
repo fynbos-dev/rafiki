@@ -10,8 +10,6 @@ import * as worker from './worker'
 
 import { Account } from '../account/model' // XXX
 
-// TODO stream receipts
-
 interface TmpAccountService extends AccountService {
   // XXX
   createIlpSubAccount(superAccountId: string): Promise<Account>

@@ -2,6 +2,10 @@ import * as knex from 'knex'
 import { ServiceDependencies } from './service'
 import { OutgoingPayment, PaymentState } from './model'
 import * as lifecycle from './lifecycle'
+import { IlpPlugin } from './ilp_plugin'
+
+// First retry waits 10 seconds, second retry waits 20 (more) seconds, etc.
+export const RETRY_BACKOFF_SECONDS = 10
 
 const maxAttempts: { [key in PaymentState]: number } = {
   Inactive: 5, // quoting
@@ -34,18 +38,19 @@ export async function processPendingPayment(
     )
     return payment.id
   })
-  //}, { isolationLevel: 'repeatable read' })
 }
 
+// Fetch (and lock) a payment for work.
 // Exported for testing.
 export async function getPendingPayment(
   deps: ServiceDependencies
 ): Promise<OutgoingPayment | undefined> {
+  const now = new Date(Date.now()).toISOString()
   const payments = await OutgoingPayment.query(deps.knex)
     .limit(1)
     // Ensure the payment cannot be processed concurrently by multiple workers.
     .forUpdate()
-    // Don't wait for a payment that is already busy.
+    // Don't wait for a payment that is already being processed.
     .skipLocked()
     .whereIn('state', [
       PaymentState.Inactive,
@@ -53,16 +58,24 @@ export async function getPendingPayment(
       PaymentState.Sending,
       PaymentState.Cancelling
     ])
+    // Back off between retries.
+    .andWhere((builder: knex.QueryBuilder) => {
+      builder
+        .where('attempts', 0)
+        .orWhereRaw(
+          '"updatedAt" + LEAST("attempts", 6) * ? * interval \'1 seconds\' < ?',
+          [RETRY_BACKOFF_SECONDS, now]
+        )
+    })
     .orWhere((builder: knex.QueryBuilder) => {
       builder
         .where('state', PaymentState.Ready)
         .andWhere((builder: knex.QueryBuilder) => {
           builder
             .where('intentAutoApprove', true)
-            .orWhere('quoteActivationDeadline', '<', new Date().toISOString())
+            .orWhere('quoteActivationDeadline', '<', now)
         })
     })
-  if (payments.length === 0) return
   return payments[0]
 }
 
@@ -74,13 +87,6 @@ export async function handlePaymentLifecycle(
   const onError = async (
     err: Error | lifecycle.PaymentError
   ): Promise<void> => {
-    console.log(
-      'ON_ERROR',
-      err,
-      payment.state,
-      'canRetryError:',
-      lifecycle.canRetryError(err)
-    ) // XXX
     const error = typeof err === 'string' ? err : err.message
     const attempts = payment.attempts + 1
 
@@ -88,7 +94,6 @@ export async function handlePaymentLifecycle(
       payment.state === PaymentState.Cancelling ||
       (attempts < maxAttempts[payment.state] && lifecycle.canRetryError(err))
     ) {
-      // TODO backoff between attempts?
       deps.logger.warn(
         { state: payment.state, error, attempts },
         'payment lifecycle failed; retrying'

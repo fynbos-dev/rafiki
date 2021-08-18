@@ -2,6 +2,7 @@ import nock from 'nock'
 import Knex from 'knex'
 import * as Pay from '@interledger/pay'
 import { StreamServer, StreamCredentials } from '@interledger/stream-receiver'
+import { RatesService } from 'rates'
 
 import { OutgoingPaymentService } from './service'
 import { createTestApp, TestContainer } from '../tests/app'
@@ -14,6 +15,7 @@ import { MockAccountService } from '../tests/mockAccounts'
 import { OutgoingPayment, PaymentIntent, PaymentState } from './model'
 import { MockPlugin } from './mock_plugin'
 import { LifecycleError } from './lifecycle'
+import { RETRY_BACKOFF_SECONDS } from './worker'
 import { PaymentProgressService } from '../payment_progress/service'
 
 describe('OutgoingPaymentService', (): void => {
@@ -21,6 +23,7 @@ describe('OutgoingPaymentService', (): void => {
   let appContainer: TestContainer
   let outgoingPaymentService: OutgoingPaymentService
   let paymentProgressService: PaymentProgressService
+  let ratesService: RatesService
   let accountService: MockAccountService
   let knex: Knex
   let superAccountId: string
@@ -63,9 +66,24 @@ describe('OutgoingPaymentService', (): void => {
       })
   }
 
+  function fastForwardToAttempt(attempts: number): void {
+    jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(Date.now() + attempts * RETRY_BACKOFF_SECONDS * 1000)
+  }
+
   beforeAll(
     async (): Promise<void> => {
       accountService = new MockAccountService()
+      ratesService = {
+        convert: () => {
+          throw new Error('unimplemented')
+        },
+        prices: async () => ({
+          USD: 1.0,
+          XRP: 2.0
+        })
+      }
       deps = await initIocContainer(Config)
       deps.bind('makeIlpPlugin', async (_deps) => (sourceAccount: string) =>
         (plugins[sourceAccount] =
@@ -78,12 +96,7 @@ describe('OutgoingPaymentService', (): void => {
           }))
       )
       deps.bind('accountService2', async (_deps) => accountService) // XXX 2
-      deps.bind('ratesService', async (_deps) => ({
-        prices: async () => ({
-          USD: 1.0,
-          XRP: 2.0
-        })
-      }))
+      deps.bind('ratesService', async (_deps) => ratesService)
       appContainer = await createTestApp(deps)
       knex = await deps.use('knex')
     }
@@ -188,7 +201,6 @@ describe('OutgoingPaymentService', (): void => {
           })
         ).id
         const payment = await processNext(paymentId, PaymentState.Ready)
-
         if (!payment.quote) throw 'no quote'
         expect(payment.quote.timestamp).toBeInstanceOf(Date)
         expect(
@@ -218,7 +230,6 @@ describe('OutgoingPaymentService', (): void => {
           })
         ).id
         const payment = await processNext(paymentId, PaymentState.Ready)
-
         if (!payment.quote) throw 'no quote'
         expect(payment.quote.targetType).toBe(Pay.PaymentType.FixedDelivery)
         expect(payment.quote.minDeliveryAmount).toBe(BigInt(56))
@@ -230,6 +241,25 @@ describe('OutgoingPaymentService', (): void => {
         )
         expect(payment.quote.lowExchangeRateEstimate.valueOf()).toBe(0.5)
         expect(payment.quote.highExchangeRateEstimate.valueOf()).toBe(0.5)
+      })
+
+      it('Inactive (rate service error)', async (): Promise<void> => {
+        jest
+          .spyOn(ratesService, 'prices')
+          .mockImplementation(() => Promise.reject(new Error('fail')))
+
+        const paymentId = (
+          await outgoingPaymentService.create({
+            superAccountId,
+            paymentPointer: 'http://wallet.example/paymentpointer/bob',
+            amountToSend: BigInt(123),
+            autoApprove: false
+          })
+        ).id
+        const payment = await processNext(paymentId, PaymentState.Inactive)
+        expect(payment.attempts).toBe(1)
+        expect(payment.error).toBeNull()
+        expect(payment.quote).toBeUndefined()
       })
     })
 
@@ -449,6 +479,8 @@ describe('OutgoingPaymentService', (): void => {
           expect(payment.state).toBe(PaymentState.Sending)
           expect(payment.error).toBeNull()
           expect(payment.attempts).toBe(i + 1)
+          // Skip through the backoff timer.
+          fastForwardToAttempt(payment.attempts)
         }
         // Last attempt fails, but no more retries.
         const payment = await processNext(paymentId, PaymentState.Cancelling)
@@ -491,6 +523,7 @@ describe('OutgoingPaymentService', (): void => {
         })
         await processNext(paymentId, PaymentState.Sending)
         mockFn.mockRestore()
+        fastForwardToAttempt(1)
         // The next attempt is without the mock, so it succeeds.
         const payment = await processNext(paymentId, PaymentState.Completed)
 
@@ -529,19 +562,20 @@ describe('OutgoingPaymentService', (): void => {
               autoApprove: true
             })
           ).id
+
+          jest
+            .spyOn(Pay, 'pay')
+            .mockImplementation(() =>
+              Promise.reject(Pay.PaymentError.InvoiceAlreadyPaid)
+            )
+          await processNext(paymentId, PaymentState.Ready)
+          await processNext(paymentId, PaymentState.Activated)
+          await processNext(paymentId, PaymentState.Sending)
+          await processNext(paymentId, PaymentState.Cancelling)
         }
       )
 
       it('Cancelled (from Sending; restore reserved funds)', async (): Promise<void> => {
-        jest
-          .spyOn(Pay, 'pay')
-          .mockImplementation(() =>
-            Promise.reject(Pay.PaymentError.InvoiceAlreadyPaid)
-          )
-        await processNext(paymentId, PaymentState.Ready)
-        await processNext(paymentId, PaymentState.Activated)
-        await processNext(paymentId, PaymentState.Sending)
-        await processNext(paymentId, PaymentState.Cancelling)
         const payment = await processNext(paymentId, PaymentState.Cancelled)
 
         expect(payment.error).toBe('InvoiceAlreadyPaid')
@@ -555,24 +589,39 @@ describe('OutgoingPaymentService', (): void => {
 
       it('Cancelling (endlessly cancel when refund fails after non-retryable send error)', async (): Promise<void> => {
         jest
-          .spyOn(Pay, 'pay')
-          .mockImplementation(() =>
-            Promise.reject(Pay.PaymentError.InvoiceAlreadyPaid)
-          )
-        jest
           .spyOn(accountService, 'revokeCredit')
           .mockImplementation(() =>
             Promise.reject(new Error('account service error'))
           )
-        for (let i = 0; i < 4; i++) await processNext(paymentId)
         // Even after many retries, if Cancelling fails it keeps retrying.
-        for (let i = 0; i < 10; i++)
-          await processNext(paymentId, PaymentState.Cancelling)
+        for (let i = 0; i < 10; i++) {
+          const payment = await processNext(paymentId, PaymentState.Cancelling)
+          expect(payment.attempts).toBe(i + 1)
+          fastForwardToAttempt(payment.attempts)
+        }
 
         const payment = await OutgoingPayment.query(knex).findById(paymentId)
         expect(payment.state).toBe(PaymentState.Cancelling)
         expect(payment.error).toBe('InvoiceAlreadyPaid')
         expect(payment.attempts).toBe(10)
+      })
+
+      it('Cancelling (not enough time between attempts)', async (): Promise<void> => {
+        jest
+          .spyOn(accountService, 'revokeCredit')
+          .mockImplementation(() =>
+            Promise.reject(new Error('account service error'))
+          )
+        await processNext(paymentId, PaymentState.Cancelling)
+        fastForwardToAttempt(0.9)
+        // Not enough time has passed before the attempt.
+        await expect(
+          outgoingPaymentService.processNext()
+        ).resolves.toBeUndefined()
+
+        const payment = await OutgoingPayment.query(knex).findById(paymentId)
+        expect(payment.state).toBe(PaymentState.Cancelling)
+        expect(payment.attempts).toBe(1)
       })
     })
   })
@@ -674,7 +723,7 @@ describe('OutgoingPaymentService', (): void => {
     })
 
     it('does not cancel an Inactive payment', async (): Promise<void> => {
-      await expect(outgoingPaymentService.activate(payment.id)).rejects.toThrow(
+      await expect(outgoingPaymentService.cancel(payment.id)).rejects.toThrow(
         `Cannot cancel; payment is in state=Inactive`
       )
 
