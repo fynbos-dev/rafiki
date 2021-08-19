@@ -3,6 +3,7 @@ import Knex from 'knex'
 import * as Pay from '@interledger/pay'
 import { StreamServer, StreamCredentials } from '@interledger/stream-receiver'
 import { RatesService } from 'rates'
+import { v4 as uuid } from 'uuid'
 
 import { OutgoingPaymentService } from './service'
 import { createTestApp, TestContainer } from '../tests/app'
@@ -44,6 +45,7 @@ describe('OutgoingPaymentService', (): void => {
   ): Promise<OutgoingPayment> {
     await expect(outgoingPaymentService.processNext()).resolves.toBe(paymentId)
     const payment = await outgoingPaymentService.get(paymentId)
+    if (!payment) throw 'no payment'
     if (expectState) expect(payment.state).toBe(expectState)
     return payment
   }
@@ -159,6 +161,12 @@ describe('OutgoingPaymentService', (): void => {
     }
   )
 
+  describe('get', (): void => {
+    it('returns undefined when no payment exists', async () => {
+      await expect(outgoingPaymentService.get(uuid())).resolves.toBeUndefined()
+    })
+  })
+
   describe('create', (): void => {
     it('creates an OutgoingPayment', async () => {
       const payment = await outgoingPaymentService.create({
@@ -185,6 +193,7 @@ describe('OutgoingPaymentService', (): void => {
       })
 
       const payment2 = await outgoingPaymentService.get(payment.id)
+      if (!payment2) throw 'no payment'
       expect(payment2.id).toEqual(payment.id)
     })
   })
@@ -646,7 +655,10 @@ describe('OutgoingPaymentService', (): void => {
       })
       await expect(
         outgoingPaymentService.requote(payment.id)
-      ).resolves.toBeUndefined()
+      ).resolves.toMatchObject({
+        id: payment.id,
+        state: PaymentState.Inactive
+      })
 
       const after = await OutgoingPayment.query(knex).findById(payment.id)
       expect(after.state).toBe(PaymentState.Inactive)
@@ -668,7 +680,7 @@ describe('OutgoingPaymentService', (): void => {
     })
   })
 
-  describe('activate', (): void => {
+  describe('approve', (): void => {
     let payment: OutgoingPayment
     beforeEach(
       async (): Promise<void> => {
@@ -683,7 +695,12 @@ describe('OutgoingPaymentService', (): void => {
     )
 
     it('activates a Ready payment', async (): Promise<void> => {
-      await outgoingPaymentService.activate(payment.id)
+      await expect(
+        outgoingPaymentService.approve(payment.id)
+      ).resolves.toMatchObject({
+        id: payment.id,
+        state: PaymentState.Activated
+      })
 
       const after = await OutgoingPayment.query(knex).findById(payment.id)
       expect(after.state).toBe(PaymentState.Activated)
@@ -691,8 +708,8 @@ describe('OutgoingPaymentService', (): void => {
 
     it('does not activate an Inactive payment', async (): Promise<void> => {
       await payment.$query().patch({ state: PaymentState.Inactive })
-      await expect(outgoingPaymentService.activate(payment.id)).rejects.toThrow(
-        `Cannot activate; payment is in state=Inactive`
+      await expect(outgoingPaymentService.approve(payment.id)).rejects.toThrow(
+        `Cannot approve; payment is in state=Inactive`
       )
 
       const after = await OutgoingPayment.query(knex).findById(payment.id)
@@ -715,7 +732,12 @@ describe('OutgoingPaymentService', (): void => {
 
     it('cancels a Ready payment', async (): Promise<void> => {
       await payment.$query().patch({ state: PaymentState.Ready })
-      await outgoingPaymentService.cancel(payment.id)
+      await expect(
+        outgoingPaymentService.cancel(payment.id)
+      ).resolves.toMatchObject({
+        id: payment.id,
+        state: PaymentState.Cancelling
+      })
 
       const after = await OutgoingPayment.query(knex).findById(payment.id)
       expect(after.state).toBe(PaymentState.Cancelling)

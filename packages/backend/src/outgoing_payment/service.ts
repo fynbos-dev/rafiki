@@ -11,7 +11,7 @@ import * as worker from './worker'
 import { Account } from '../account/model' // XXX
 
 interface TmpAccountService extends AccountService {
-  // XXX
+  // TODO remove this extra interface once real Backend↔AccountService API is implemented
   createIlpSubAccount(superAccountId: string): Promise<Account>
   extendCredit(accountId: string, amount: bigint): Promise<string | undefined>
   revokeCredit(accountId: string, amount: bigint): Promise<string | undefined>
@@ -19,11 +19,11 @@ interface TmpAccountService extends AccountService {
 }
 
 export interface OutgoingPaymentService {
-  get(id: string): Promise<OutgoingPayment>
+  get(id: string): Promise<OutgoingPayment | undefined>
   create(options: CreateOutgoingPaymentOptions): Promise<OutgoingPayment>
-  activate(id: string): Promise<void>
-  cancel(id: string): Promise<void>
-  requote(id: string): Promise<void>
+  approve(id: string): Promise<OutgoingPayment>
+  cancel(id: string): Promise<OutgoingPayment>
+  requote(id: string): Promise<OutgoingPayment>
   processNext(): Promise<string | undefined>
 }
 
@@ -47,7 +47,7 @@ export async function createOutgoingPaymentService(
     get: (id) => getOutgoingPayment(deps, id),
     create: (options: CreateOutgoingPaymentOptions) =>
       createOutgoingPayment(deps, options),
-    activate: (id) => activatePayment(deps, id),
+    approve: (id) => approvePayment(deps, id),
     cancel: (id) => cancelPayment(deps, id),
     requote: (id) => requotePayment(deps, id),
     processNext: () => worker.processPendingPayment(deps)
@@ -57,7 +57,7 @@ export async function createOutgoingPaymentService(
 async function getOutgoingPayment(
   deps: ServiceDependencies,
   id: string
-): Promise<OutgoingPayment> {
+): Promise<OutgoingPayment | undefined> {
   return OutgoingPayment.query(deps.knex)
     .findById(id)
     .withGraphJoined('outcome')
@@ -106,33 +106,38 @@ async function createOutgoingPayment(
   })
 }
 
-function requotePayment(deps: ServiceDependencies, id: string): Promise<void> {
+function requotePayment(
+  deps: ServiceDependencies,
+  id: string
+): Promise<OutgoingPayment> {
   return deps.knex.transaction(async (trx) => {
     const payment = await OutgoingPayment.query(trx).findById(id).forUpdate()
     if (payment.state !== PaymentState.Cancelled) {
       throw new Error(`Cannot quote; payment is in state=${payment.state}`)
     }
     await payment.$query(trx).patch({ state: PaymentState.Inactive })
+    return payment
   })
 }
 
-async function activatePayment(
+async function approvePayment(
   deps: ServiceDependencies,
   id: string
-): Promise<void> {
+): Promise<OutgoingPayment> {
   return deps.knex.transaction(async (trx) => {
     const payment = await OutgoingPayment.query(trx).findById(id).forUpdate()
     if (payment.state !== PaymentState.Ready) {
-      throw new Error(`Cannot activate; payment is in state=${payment.state}`)
+      throw new Error(`Cannot approve; payment is in state=${payment.state}`)
     }
     await payment.$query(trx).patch({ state: PaymentState.Activated })
+    return payment
   })
 }
 
 async function cancelPayment(
   deps: ServiceDependencies,
   id: string
-): Promise<void> {
+): Promise<OutgoingPayment> {
   return deps.knex.transaction(async (trx) => {
     const payment = await OutgoingPayment.query(trx).findById(id).forUpdate()
     if (payment.state !== PaymentState.Ready) {
@@ -142,5 +147,6 @@ async function cancelPayment(
       state: PaymentState.Cancelling,
       error: lifecycle.LifecycleError.CancelledByAPI
     })
+    return payment
   })
 }
