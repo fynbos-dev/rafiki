@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Knex = require('knex')
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { GenericContainer, Wait } = require('testcontainers')
+const { GenericContainer, Wait, Network } = require('testcontainers')
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const tmp = require('tmp')
 
@@ -12,6 +12,9 @@ const TIGERBEETLE_PORT = 3004
 const TIGERBEETLE_DIR = '/var/lib/tigerbeetle'
 
 const REDIS_PORT = 6379
+
+const HYDRA_PUBLIC_PORT = 4444
+const HYDRA_ADMIN_PORT = 4445
 
 module.exports = async (globalConfig) => {
   const workers = globalConfig.maxWorkers
@@ -112,5 +115,56 @@ module.exports = async (globalConfig) => {
     process.env.REDIS_URL = `redis://localhost:${redisContainer.getMappedPort(
       REDIS_PORT
     )}`
+  }
+
+  if (!process.env.HYDRA_PUBLIC_URL || !process.env.HYDRA_ADMIN_URL) {
+    const hydraNetwork = await new Network().start()
+
+    const hydraContainer = await new GenericContainer(
+      'oryd/hydra:v1.10.6-sqlite'
+    )
+      .withNetworkMode(hydraNetwork.getName())
+      .withName('hydra')
+      .withExposedPorts(HYDRA_PUBLIC_PORT, HYDRA_ADMIN_PORT)
+      .withEnv('SECRETS_SYSTEM', 'mysupersecretsecret')
+      .withEnv('DSN', 'memory')
+      .withEnv('URLS_SELF_ISSUER', `http://localhost:${HYDRA_PUBLIC_PORT}/`) //TODO: need to make sure this is correct
+      .withEnv('URLS_CONSENT', 'http://localhost:9020/consent') //TODO: update port
+      .withEnv('URLS_LOGIN', 'http://localhost:9020/login') //TODO: update port
+      .withCmd(['serve', 'all', '--dangerous-force-http'])
+      .start()
+
+    global.__BACKEND_HYDRA__ = hydraContainer
+    process.env.HYDRA_PUBLIC_URL = `http://hydra:${hydraContainer.getMappedPort(
+      HYDRA_PUBLIC_PORT
+    )}`
+    process.env.HYDRA_ADMIN_URL = `http://hydra:${hydraContainer.getMappedPort(
+      HYDRA_ADMIN_PORT
+    )}`
+
+    // Create client
+    new GenericContainer('oryd/hydra:v1.10.6-sqlite')
+      .withNetworkMode(hydraNetwork.getName())
+      .withEnv('HYDRA_ADMIN_URL', `http://hydra:${HYDRA_ADMIN_PORT}`)
+      .withCmd([
+        'clients',
+        'create',
+        '--skip-tls-verify',
+        '--id',
+        'frontend-client',
+        '--secret',
+        'secret',
+        '--token-endpoint-auth-method',
+        'none',
+        '--grant-types',
+        'authorization_code,refresh_token',
+        '--response-types',
+        'token,code,id_token',
+        '--scope',
+        'openid,offline',
+        '--callbacks',
+        'http://localhost:3000/callback' // TODO: update port
+      ])
+      .start()
   }
 }

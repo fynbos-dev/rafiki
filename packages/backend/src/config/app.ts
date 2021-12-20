@@ -65,5 +65,9 @@ export const Config = {
   deactivateInvoiceWorkerIdle: envInt('DEACTIVATE_INVOICE_WORKER_IDLE', 200), // milliseconds
 
   /** Frontend **/
-  frontendUrl: envString('FRONTEND_URL', 'http://localhost:3000')
+  frontendUrl: envString('FRONTEND_URL', 'http://localhost:3000'),
+
+  /** Hydra **/
+  hydraPublicUrl: envString('HYDRA_PUBLIC_URL', 'http://127.0.0.1:4444'),
+  hydraAdminUrl: envString('HYDRA_ADMIN_URL', 'http://127.0.0.1:4445')
 }
