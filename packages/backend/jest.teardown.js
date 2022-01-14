@@ -13,4 +13,8 @@ module.exports = async () => {
   if (global.__BACKEND_REDIS__) {
     await global.__BACKEND_REDIS__.stop()
   }
+
+  if (global.__BACKEND_HYDRA__) {
+    await global.__BACKEND_HYDRA__.stop()
+  }
 }
