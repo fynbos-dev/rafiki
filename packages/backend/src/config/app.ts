@@ -15,10 +15,10 @@ function envFloat(name: string, value: number): number {
   return envValue == null ? value : +envValue
 }
 
-// function envBool(name: string, value: boolean): boolean {
-//   const envValue = process.env[name]
-//   return envValue == null ? value : Boolean(envValue)
-// }
+function envBool(name: string, value: boolean): boolean {
+  const envValue = process.env[name]
+  return envValue == null ? value : Boolean(envValue)
+}
 
 export type IAppConfig = typeof Config
 
@@ -69,5 +69,6 @@ export const Config = {
 
   /** Hydra **/
   hydraPublicUrl: envString('HYDRA_PUBLIC_URL', 'http://127.0.0.1:4444'),
-  hydraAdminUrl: envString('HYDRA_ADMIN_URL', 'http://127.0.0.1:4445')
+  hydraAdminUrl: envString('HYDRA_ADMIN_URL', 'http://127.0.0.1:4445'),
+  mockTlsTermination: envBool('MOCK_TLS_TERMINATION', true)
 }

@@ -37,6 +37,7 @@ import { ApiKeyService } from './apiKey/service'
 import { SessionService } from './session/service'
 import { addDirectivesToSchema } from './graphql/directives'
 import { Session } from './session/util'
+import { HydraService } from './hydra/service'
 
 export interface AppContextData {
   logger: Logger
@@ -78,6 +79,7 @@ export interface AppServices {
   ratesService: Promise<RatesService>
   apiKeyService: Promise<ApiKeyService>
   sessionService: Promise<SessionService>
+  hydraService: Promise<HydraService>
 }
 
 export type AppContainer = IocContract<AppServices>

@@ -28,6 +28,7 @@ import { createWebMonetizationService } from './webmonetization/service'
 import { createConnectorService } from './connector'
 import { createSessionService } from './session/service'
 import { createApiKeyService } from './apiKey/service'
+import { createHydraService } from './hydra/service'
 
 BigInt.prototype.toJSON = function () {
   return this.toString()
@@ -257,6 +258,20 @@ export function initIocContainer(
       logger: logger,
       knex: knex,
       sessionService: sessionService
+    })
+  })
+
+  container.singleton('hydraService', async (deps) => {
+    const logger = await deps.use('logger')
+    const knex = await deps.use('knex')
+    const config = await deps.use('config')
+    return await createHydraService({
+      logger: logger,
+      knex: knex,
+      hydraAdminUrl: config.hydraAdminUrl,
+      mockTlsTermination: config.mockTlsTermination
+        ? { 'X-Forwarded-Proto': 'hppts' }
+        : {}
     })
   })
 
