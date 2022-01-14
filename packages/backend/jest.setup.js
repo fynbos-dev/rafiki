@@ -135,10 +135,10 @@ module.exports = async (globalConfig) => {
       .start()
 
     global.__BACKEND_HYDRA__ = hydraContainer
-    process.env.HYDRA_PUBLIC_URL = `http://hydra:${hydraContainer.getMappedPort(
+    process.env.HYDRA_PUBLIC_URL = `http://localhost:${hydraContainer.getMappedPort(
       HYDRA_PUBLIC_PORT
     )}`
-    process.env.HYDRA_ADMIN_URL = `http://hydra:${hydraContainer.getMappedPort(
+    process.env.HYDRA_ADMIN_URL = `http://localhost:${hydraContainer.getMappedPort(
       HYDRA_ADMIN_PORT
     )}`
 
