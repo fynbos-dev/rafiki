@@ -1,0 +1,35 @@
+on:
+  push:
+    branches:
+    - main
+    tags:
+    - '*'
+
+name: Release Docker Image
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Install dependencies
+        run: yarn install --immutable --immutable-cache
+
+      - name: Build Docker Image
+        run: yarn docker build backend -t ghcr.io/${{ github.repository_owner }}/rafiki-backend:${{ github.sha }} -t ghcr.io/${{ github.repository_owner }}/rafiki-backend:latest
+
+      - name: Tag Docker Image
+        if: github.ref_type == 'tag'
+        run: docker tag ghcr.io/${{ github.repository_owner }}/rafiki-backend:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/rafiki-backend:${{ github.ref_name }}
+
+      - name: Login GHCR
+        # You must create a personal access token on GitHub and add it to the 
+        # repo's actions secrets named by 'GHCR_PAT' in order to use this step.
+        run: echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+
+      - name: Push Docker Image to GHCR
+        run: docker push ghcr.io/${{ github.repository_owner }}/rafiki-backend:${{ github.sha }}
