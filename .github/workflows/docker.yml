@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: '14'
 
-      - name: Install dependencies
+      - name: Install test dependencies
         run: yarn install --immutable --immutable-cache
 
       - name: Build Docker Image
