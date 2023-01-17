@@ -2,7 +2,8 @@ import { Resolvers } from '../generated/graphql'
 import {
   getPaymentPointer,
   createPaymentPointer,
-  triggerPaymentPointerEvents
+  triggerPaymentPointerEvents,
+  updatePaymentPointerCredential
 } from './payment_pointer'
 import {
   getAsset,
@@ -57,6 +58,7 @@ export const resolvers: Resolvers = {
   },
   Mutation: {
     createPaymentPointerKey,
+    updatePaymentPointerCredential,
     revokePaymentPointerKey,
     createPaymentPointer,
     triggerPaymentPointerEvents,
