@@ -13,13 +13,15 @@ interface ServiceDependencies {
 
 export interface PaymentPointerRoutes {
   get(ctx: PaymentPointerContext): Promise<void>
+  getCredentialId(ctx: PaymentPointerContext): Promise<void>
 }
 
 export function createPaymentPointerRoutes(
   deps: ServiceDependencies
 ): PaymentPointerRoutes {
   return {
-    get: (ctx: PaymentPointerContext) => getPaymentPointer(deps, ctx)
+    get: (ctx: PaymentPointerContext) => getPaymentPointer(deps, ctx),
+    getCredentialId: (ctx: PaymentPointerContext) => getCredentialId(deps, ctx)
   }
 }
 
@@ -35,6 +37,21 @@ export async function getPaymentPointer(
   ctx.body = ctx.paymentPointer.toOpenPaymentsType({
     authServer: deps.authServer
   })
+}
+
+export async function getCredentialId(
+  deps: ServiceDependencies,
+  ctx: PaymentPointerContext
+): Promise<void> {
+  if (!ctx.paymentPointer) {
+    return ctx.throw(404)
+  }
+
+  if (!ctx.paymentPointer.credentialId) {
+    return ctx.throw(404)
+  }
+
+  ctx.body = ctx.paymentPointer.credentialId
 }
 
 interface ListSubresourceOptions<M extends PaymentPointerSubresource> {

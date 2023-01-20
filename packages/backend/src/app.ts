@@ -404,6 +404,15 @@ export class App {
         await paymentPointerKeyRoutes.getKeysByPaymentPointerId(ctx)
     )
 
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    router.get(
+      PAYMENT_POINTER_PATH + '/credentialId',
+      createPaymentPointerMiddleware(),
+      async (ctx: PaymentPointerContext): Promise<void> =>
+        await paymentPointerRoutes.getCredentialId(ctx)
+    )
+
     // Add the payment pointer query route last.
     // Otherwise it will be matched instead of other Open Payments endpoints.
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
