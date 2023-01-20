@@ -325,6 +325,7 @@ components:
             type: string
             enum:
               - redirect
+              - spc
         finish:
           type: object
           description: Indicates how the client instance can receive an indication that interaction has finished at the AS.
