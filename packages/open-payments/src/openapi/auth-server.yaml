@@ -360,9 +360,19 @@ components:
         finish:
           type: string
           description: Unique key to secure the callback.
-      required:
-        - redirect
-        - finish
+        spc:
+          type: object
+          title: spc
+          description: The SPC parameters.
+          properties:
+            credential_ids:
+              type: array
+              description: The SPC credential ID.
+              items:
+                type: string
+            challenge:
+              type: string
+              description: The SPC challenge.
     continue:
       title: continue
       type: object

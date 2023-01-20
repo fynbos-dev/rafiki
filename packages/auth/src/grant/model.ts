@@ -4,7 +4,8 @@ import { Access } from '../access/model'
 import { join } from 'path'
 
 export enum StartMethod {
-  Redirect = 'redirect'
+  Redirect = 'redirect',
+  SPC = 'spc'
 }
 
 export enum FinishMethod {

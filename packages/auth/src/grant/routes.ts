@@ -17,6 +17,8 @@ import { AccessTokenService } from '../accessToken/service'
 import { AccessService } from '../access/service'
 import { accessToBody } from '../shared/utils'
 import { AccessToken } from '../accessToken/model'
+import axios from 'axios'
+import base64url from 'base64url'
 
 interface ServiceDependencies extends BaseService {
   grantService: GrantService
@@ -187,6 +189,46 @@ async function createGrantInitiation(
     ctx.throw(400, 'invalid_client', { error: 'invalid_client' })
   } else {
     const grant = await grantService.create(body)
+
+    if (body.interact.start[0] === 'spc') {
+      const paymentPointer = body.access_token.access.find((access) => {
+        return access.type === 'outgoing-payment'
+      })?.identifier
+
+      if (!paymentPointer) {
+        ctx.throw(400, 'invalid_request', { error: 'invalid_request' })
+      }
+
+      const res = await axios
+        .get(paymentPointer.replace('https', 'http') + '/credentialId')
+        .catch(() => {
+          ctx.throw(404, 'credential_not_found', {
+            error: 'credential_not_found'
+          })
+        })
+
+      if (!grant.interactRef) {
+        ctx.throw(400, 'invalid_request', { error: "Couldn't find interactRef" })
+      }
+
+      ctx.body = {
+        interact: {
+          spc: {
+            credential_ids: [res.data], // credential ids are stored base64url encoded
+            challenge: base64url.encode(grant.interactRef)
+          }
+        },
+        continue: {
+          access_token: {
+            value: grant.continueToken
+          },
+          uri: config.authServerDomain + `/auth/continue/${grant.continueId}`
+        }
+      }
+
+      return
+    }
+
     ctx.status = 200
 
     const redirectUri = new URL(
