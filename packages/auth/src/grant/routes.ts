@@ -46,7 +46,20 @@ type GrantContext<BodyT = never, QueryT = ParsedUrlQuery> = Exclude<
 export type CreateContext = GrantContext<GrantRequestBody>
 
 interface GrantContinueBody {
-  interact_ref: string
+  interact_ref?: string
+  public_key_cred?: {
+    type: string
+    id: string
+    rawId: string
+    authenticatorAttachment: string
+    response: {
+      clientDataJSON: string
+      authenticatorData: string
+      signature: string
+      userHandle: string
+    }
+    clientExtensionResults: unknown
+  }
 }
 
 interface GrantParams {
@@ -207,9 +220,7 @@ async function createGrantInitiation(
           })
         })
 
-      if (!grant.interactRef) {
-        ctx.throw(400, 'invalid_request', { error: "Couldn't find interactRef" })
-      }
+      if (!grant.interactRef) ctx.throw(500)
 
       ctx.body = {
         interact: {
@@ -409,6 +420,47 @@ async function continueGrant(
   const continueToken = (ctx.headers['authorization'] as string)?.split(
     'GNAP '
   )[1]
+
+  if (ctx.request.body?.public_key_cred) {
+    if (!continueId || !continueToken) {
+      ctx.throw(401, { error: 'invalid_request' })
+    }
+
+    const interactRef = base64url.decode(
+      JSON.parse(
+        base64url.decode(
+          ctx.request.body.public_key_cred.response.clientDataJSON
+        )
+      ).challenge
+    )
+
+    const { config, accessTokenService, grantService, accessService } = deps
+    const grant = await grantService.getByContinue(
+      continueId,
+      continueToken,
+      interactRef
+    )
+    if (!grant) {
+      ctx.throw(404, { error: 'unknown_request' })
+    }
+
+    // TODO: before issuing grant, follow the checklist in the SPC spec
+    // https://w3c.github.io/secure-payment-confirmation/#sctn-verifying-assertion
+
+    const granted = await grantService.issueGrant(grant.id)
+    const accessToken = await accessTokenService.create(grant.id)
+    const access = await accessService.getByGrant(grant.id)
+
+    ctx.body = createGrantBody({
+      domain: config.authServerDomain,
+      grant: granted,
+      access,
+      accessToken
+    })
+
+    return
+  }
+
   const { interact_ref: interactRef } = ctx.request.body
 
   if (!continueId || !continueToken || !interactRef) {

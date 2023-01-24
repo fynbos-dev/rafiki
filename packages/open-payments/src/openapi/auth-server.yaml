@@ -213,8 +213,37 @@ paths:
                   description: |-
                     The interaction reference generated for this
                     interaction by the AS.
-              required:
-                - interact_ref
+                public_key_cred:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - public-key
+                    id:
+                      type: string
+                    rawId:
+                      type: string
+                    authencatorAttachment:
+                      type: string
+                      enum:
+                        - platform
+                        - cross-platform
+                    response:
+                      type: object
+                      properties:
+                        clientDataJSON:
+                          type: string
+                        authenticatorData:
+                          type: string
+                        signature:
+                          type: string
+                        userHandle:
+                          type: string
+                    clientExtensionResults:
+                      type: object
+                      additionalProperties:
+                        type: string
             examples:
               Interaction Reference:
                 value:
