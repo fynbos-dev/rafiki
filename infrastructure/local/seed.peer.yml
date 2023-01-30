@@ -11,8 +11,8 @@ peers:
     peerUrl: http://backend:3002
     peerIlpAddress: test.rafiki
 accounts:
-  - name: 'Philip Fry'
-    path: accounts/pfry
+  - name: 'ACME Commerce'
+    path: accounts/acme
     id: 97a3a431-8ee1-48fc-ac85-70e2f5eba8e5
     initialBalance: 1
     postmanEnvVar: pfryPaymentPointer
