@@ -15,7 +15,7 @@ services:
       AUTH_DATABASE_URL: postgresql://peerauth:peerauth@database/peerauth
       INTROSPECTION_HTTPSIG: "false"
       AUTH_SERVER_DOMAIN: "http://localhost:4006"
-  peer-backend:
+  trusty-bank:
     image: ghcr.io/interledger/rafiki-backend:latest
     build:
       context: ../..
@@ -43,13 +43,13 @@ services:
       ILP_ADDRESS: test.peer
       STREAM_SECRET: BjPXtnd00G2mRQwP/8ZpwyZASOch5sUXT5o0iR5b5wU=
       ADMIN_KEY: admin
-      PUBLIC_HOST: http://peer-backend
+      PUBLIC_HOST: http://trusty-bank
       WEBHOOK_URL: http://local-bank/webhooks
       OPEN_PAYMENTS_URL: http://local-bank
       PRICES_URL: http://local-bank/prices
       REDIS_URL: redis://redis:6379/1
       QUOTE_URL: http://local-bank/quote
-      PAYMENT_POINTER_URL: https://peer-backend/.well-known/pay
+      PAYMENT_POINTER_URL: https://trusty-bank/.well-known/pay
   local-bank:
     build:
       context: ../..
@@ -69,7 +69,7 @@ services:
       - ./seed.peer.yml:/workspace/seed.peer.yml
       - ./peer-private-key.pem:/workspace/private-key.pem
     depends_on:
-      - peer-backend
+      - trusty-bank
   peer-signatures:
     build:
       context: ../..

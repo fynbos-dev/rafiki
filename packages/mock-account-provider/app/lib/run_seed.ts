@@ -1,4 +1,4 @@
-import { CONFIG, type Config, type Account, type Peering } from './parse_config'
+import { CONFIG, type Config, type Account, type Peering } from './parse_config.server'
 import {
   createAsset,
   createPeer,

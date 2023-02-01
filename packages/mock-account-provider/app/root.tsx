@@ -5,14 +5,22 @@ import {
   Meta,
   Outlet,
   Scripts,
-  ScrollRestoration
+  ScrollRestoration,
+  useLoaderData
 } from '@remix-run/react'
+import { CONFIG } from './lib/parse_config.server'
 
-export const meta: MetaFunction = () => ({
-  charset: 'utf-8',
-  title: 'Mock Account Provider',
-  viewport: 'width=device-width,initial-scale=1'
-})
+export const loader = () => {
+  return CONFIG
+}
+
+export const meta: MetaFunction = ({ data }) => {
+  return {
+    charset: 'utf-8',
+    title: data.seed.meta.name,
+    viewport: 'width=device-width,initial-scale=1'
+  }
+}
 
 export const links: LinksFunction = () => {
   return [
@@ -27,12 +35,20 @@ export const links: LinksFunction = () => {
   ]
 }
 
+
 export default function App() {
+  const data = useLoaderData()
+
   return (
     <html lang='en'>
       <head>
         <Meta />
         <Links />
+        <link
+          rel='icon'
+          href={data.seed.self.hostname + '.ico'}
+          type='image/png'
+        />
       </head>
       <body>
         <Outlet />

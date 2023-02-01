@@ -4,7 +4,7 @@ services:
     build:
       context: ../..
       dockerfile: ./packages/auth/Dockerfile
-  backend:
+  fynbos:
     build:
       context: ../..
       dockerfile: ./packages/backend/Dockerfile
@@ -12,7 +12,7 @@ services:
     build:
       context: ../..
       dockerfile: ./packages/auth/Dockerfile
-  peer-backend:
+  trusty-bank:
     build:
       context: ../..
       dockerfile: ./packages/backend/Dockerfile

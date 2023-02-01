@@ -111,7 +111,7 @@ Query Variables (substitute the asset ID from the "create asset" response for `I
     "staticIlpAddress": "test.peer",
     "http": {
       "incoming": {"authTokens": ["test"]},
-      "outgoing": {"endpoint": "peer-backend:3002", "authToken": "test"}
+      "outgoing": {"endpoint": "trusty-bank:3002", "authToken": "test"}
     },
     "assetId": "INSERT_ASSET_ID"
   }

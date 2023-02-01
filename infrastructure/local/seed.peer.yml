@@ -1,14 +1,16 @@
 self:
-  graphqlUrl: http://peer-backend:3001/graphql
-  hostname: 'peer-backend'
+  graphqlUrl: http://trusty-bank:3001/graphql
+  hostname: 'trusty-bank'
   mapHostname: 'primary-map'
   openPaymentPublishedPort: 4000
+meta: 
+  name: 'Trusty Bank'
 asset:
   code: USD
   scale: 2
 peers:
   - initialLiquidity: '1000000000000'
-    peerUrl: http://backend:3002
+    peerUrl: http://fynbos:3002
     peerIlpAddress: test.rafiki
 accounts:
   - name: 'ACME Commerce'

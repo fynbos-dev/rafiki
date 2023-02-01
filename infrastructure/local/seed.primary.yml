@@ -1,14 +1,16 @@
 self:
-  graphqlUrl: http://backend:3001/graphql
-  hostname: 'backend'
+  graphqlUrl: http://fynbos:3001/graphql
+  hostname: 'fynbos'
   mapHostname: 'primary-map'
   openPaymentPublishedPort: 3000
+meta:
+  name: 'Fynbos'
 asset:
   code: USD
   scale: 2
 peers:
   - initialLiquidity: '100000'
-    peerUrl: http://peer-backend:3002
+    peerUrl: http://trusty-bank:3002
     peerIlpAddress: test.peer
 accounts:
   - name: 'Grace Franklin'

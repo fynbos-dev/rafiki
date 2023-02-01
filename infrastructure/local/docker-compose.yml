@@ -17,7 +17,7 @@ services:
     depends_on:
       - tigerbeetle
       - database
-  fynbos:
+  local-wallet:
     build:
       context: ../..
       dockerfile: ./packages/mock-account-provider/Dockerfile
@@ -36,8 +36,8 @@ services:
       - ./seed.primary.yml:/workspace/seed.primary.yml
       - ./private-key.pem:/workspace/private-key.pem
     depends_on:
-      - backend
-  backend:
+      - fynbos
+  fynbos:
     image: ghcr.io/interledger/rafiki-backend:latest
     build:
       context: ../..
@@ -65,13 +65,13 @@ services:
       ILP_ADDRESS: test.rafiki
       STREAM_SECRET: BjPXtnd00G2mRQwP/8ZpwyZASOch5sUXT5o0iR5b5wU=
       ADMIN_KEY: admin
-      PUBLIC_HOST: http://backend
-      OPEN_PAYMENTS_URL: http://backend
-      WEBHOOK_URL: http://fynbos/webhooks
-      PRICES_URL: http://fynbos/prices
+      PUBLIC_HOST: http://fynbos
+      OPEN_PAYMENTS_URL: http://fynbos
+      WEBHOOK_URL: http://local-wallet/webhooks
+      PRICES_URL: http://local-wallet/prices
       REDIS_URL: redis://redis:6379/0
-      QUOTE_URL: http://fynbos/quotes
-      PAYMENT_POINTER_URL: https://backend/.well-known/pay
+      QUOTE_URL: http://local-wallet/quotes
+      PAYMENT_POINTER_URL: https://fynbos/.well-known/pay
     depends_on:
       - tigerbeetle
       - database
