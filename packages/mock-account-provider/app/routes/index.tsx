@@ -85,6 +85,12 @@ export default function Accounts() {
       { method: 'put' }
     )
 
+    if (fetcher.data.success) {
+      alert('Credential updated')
+    } else {
+      alert('Credential update failed')
+    }
+
     return
   }
 
